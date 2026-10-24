@@ -103,14 +103,10 @@ export default function RouteSearchForm({
         </div>
 
         {/* Quick Swap Button */}
-        <div className="text-center my-1">
+        <div className="text-center my-2">
           <button
             type="button"
-            className="btn btn-sm text-secondary p-0 text-decoration-none d-inline-flex align-items-center gap-1 px-2 py-0 rounded-pill"
-            style={{
-              background: 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid rgba(255, 255, 255, 0.08)'
-            }}
+            className="btn glass-swap-btn d-inline-flex align-items-center gap-1.5"
             onClick={handleSwap}
             title="Swap origin and destination"
             disabled={loading}
@@ -119,13 +115,13 @@ export default function RouteSearchForm({
               <polyline points="7 10 12 15 17 10"/>
               <polyline points="17 14 12 9 7 14"/>
             </svg>
-            <span className="text-muted" style={{ fontSize: '0.70rem' }}>Swap</span>
+            <span>Swap</span>
           </button>
         </div>
 
         {/* Destination Input */}
         <div className="mb-3">
-          <label className="form-label small text-secondary mb-1 fw-semibold d-flex align-items-center gap-1">
+          <label className="form-label small mb-1 fw-semibold d-flex align-items-center gap-1" style={{ color: '#e2e8f0' }}>
             <span
               className="rounded-circle d-inline-flex align-items-center justify-content-center text-white"
               style={{ width: 18, height: 18, fontSize: '0.65rem', background: '#ef4444', fontWeight: 'bold' }}
@@ -159,10 +155,10 @@ export default function RouteSearchForm({
 
         {/* Quick Presets */}
         <div className="mb-3">
-          <span className="text-muted d-block mb-1" style={{ fontSize: '0.70rem' }}>
+          <span className="d-block mb-1 fw-semibold" style={{ fontSize: '0.74rem', color: '#cbd5e1' }}>
             Quick Route Presets:
           </span>
-          <div className="d-flex flex-wrap gap-1">
+          <div className="d-flex flex-wrap gap-1.5">
             {PRESETS.map((p, idx) => (
               <button
                 key={idx}
@@ -262,8 +258,8 @@ export default function RouteSearchForm({
         <div className="mt-2 text-center">
           <button
             type="button"
-            className="btn btn-link btn-sm text-decoration-none text-muted p-0"
-            style={{ fontSize: '0.72rem' }}
+            className="btn btn-link btn-sm text-decoration-none p-0 fw-semibold"
+            style={{ fontSize: '0.74rem', color: '#38bdf8' }}
             onClick={() => setShowWeights(!showWeights)}
           >
             {showWeights ? '▲ Hide Ranking Weights' : '⚙ Customize Criteria Weights'}
@@ -273,23 +269,26 @@ export default function RouteSearchForm({
         {/* Collapsible Weights Sliders */}
         {showWeights && (
           <div
-            className="mt-2 p-2 rounded"
+            className="mt-2 p-3 rounded-3"
             style={{
-              background: 'rgba(11, 17, 32, 0.65)',
-              border: '1px solid rgba(255, 255, 255, 0.08)'
+              background: 'rgba(14, 14, 18, 0.95)',
+              border: '1px solid rgba(255, 255, 255, 0.12)'
             }}
           >
             <div className="d-flex justify-content-between align-items-center mb-2">
-              <span className="small text-light fw-semibold">Multi-Criteria Weights</span>
-              <span className="badge bg-secondary font-monospace" style={{ fontSize: '0.65rem' }}>
+              <span className="small text-white fw-semibold">Multi-Criteria Weights</span>
+              <span
+                className="badge font-monospace"
+                style={{ fontSize: '0.65rem', background: 'rgba(255, 255, 255, 0.12)', color: '#e2e8f0' }}
+              >
                 Normalized
               </span>
             </div>
 
             {/* Travel Time Weight */}
             <div className="mb-2">
-              <div className="d-flex justify-content-between text-secondary" style={{ fontSize: '0.70rem' }}>
-                <span>Travel Time</span>
+              <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.74rem', color: '#e2e8f0' }}>
+                <span className="fw-medium">Travel Time</span>
                 <span className="text-info fw-bold font-monospace">{Math.round(weights.weightTime * 100)}%</span>
               </div>
               <input
@@ -305,8 +304,8 @@ export default function RouteSearchForm({
 
             {/* Traffic Delay Weight */}
             <div className="mb-2">
-              <div className="d-flex justify-content-between text-secondary" style={{ fontSize: '0.70rem' }}>
-                <span>Traffic Congestion Delay</span>
+              <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.74rem', color: '#e2e8f0' }}>
+                <span className="fw-medium">Traffic Congestion Delay</span>
                 <span className="text-warning fw-bold font-monospace">{Math.round(weights.weightDelay * 100)}%</span>
               </div>
               <input
@@ -322,8 +321,8 @@ export default function RouteSearchForm({
 
             {/* Distance Weight */}
             <div>
-              <div className="d-flex justify-content-between text-secondary" style={{ fontSize: '0.70rem' }}>
-                <span>Geographic Distance</span>
+              <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.74rem', color: '#e2e8f0' }}>
+                <span className="fw-medium">Geographic Distance</span>
                 <span className="text-success fw-bold font-monospace">{Math.round(weights.weightDistance * 100)}%</span>
               </div>
               <input

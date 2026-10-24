@@ -169,9 +169,9 @@ export default function App() {
           onDismissError={() => setError(null)}
         />
 
-        <div className="row g-3">
+        <div className="row g-4">
           {/* Left Panel: Inputs & Route Cards */}
-          <div className="col-lg-4 col-md-5 d-flex flex-column">
+          <div className="col-lg-5 col-xl-5 d-flex flex-column">
             <RouteSearchForm
               source={source}
               setSource={setSource}
@@ -199,7 +199,7 @@ export default function App() {
           </div>
 
           {/* Right Panel: Interactive Map & Legend */}
-          <div className="col-lg-8 col-md-7 d-flex flex-column sticky-map-column">
+          <div className="col-lg-7 col-xl-7 d-flex flex-column sticky-map-column">
             <div className="map-panel-container flex-grow-1 mb-2">
               <MapView
                 source={sourceMeta}

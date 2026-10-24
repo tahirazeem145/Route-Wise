@@ -70,8 +70,8 @@ export default function RouteCardList({
         )}
       </div>
 
-      {/* Clean Route Options List */}
-      <div className="d-flex flex-column gap-2 mb-3">
+      {/* Clean Route Options List with generous breathing room */}
+      <div className="d-flex flex-column gap-3 mb-4">
         {routes.map((route) => {
           const isSelected = route.id === selectedRouteId;
           const isRecommended = route.isRecommended;
@@ -84,7 +84,7 @@ export default function RouteCardList({
               className={`route-option-row ${isSelected ? 'is-active' : ''} ${isRecommended ? 'is-recommended-row' : ''}`}
               onClick={() => onSelectRoute(route.id)}
             >
-              <div className="d-flex align-items-center justify-content-between">
+              <div className="d-flex align-items-center justify-content-between mb-2">
                 {/* Left: Radio + Rank + Metrics */}
                 <div className="d-flex align-items-center gap-3">
                   <div className="route-radio-indicator">
@@ -92,7 +92,7 @@ export default function RouteCardList({
                   </div>
 
                   <div>
-                    <div className="d-flex align-items-center gap-2 mb-1">
+                    <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
                       <span className="fs-5 fw-bold text-white lh-1">
                         {formatDuration(route.estimatedDurationSeconds)}
                       </span>
@@ -101,10 +101,10 @@ export default function RouteCardList({
                         <span
                           className="badge rounded-pill fw-bold"
                           style={{
-                            background: 'rgba(34, 197, 94, 0.2)',
+                            background: 'rgba(34, 197, 94, 0.18)',
                             color: '#4ade80',
                             border: '1px solid rgba(34, 197, 94, 0.4)',
-                            fontSize: '0.66rem',
+                            fontSize: '0.68rem',
                             padding: '3px 8px'
                           }}
                         >
@@ -117,7 +117,7 @@ export default function RouteCardList({
                             background: 'rgba(255, 255, 255, 0.08)',
                             color: '#94a3b8',
                             border: '1px solid rgba(255, 255, 255, 0.15)',
-                            fontSize: '0.66rem',
+                            fontSize: '0.68rem',
                             padding: '3px 8px'
                           }}
                         >
@@ -128,31 +128,31 @@ export default function RouteCardList({
                       <span
                         className="badge rounded-pill"
                         style={{
-                          backgroundColor: `${route.trafficColor || '#64748b'}20`,
+                          backgroundColor: `${route.trafficColor || '#64748b'}18`,
                           color: route.trafficColor || '#94a3b8',
-                          border: `1px solid ${route.trafficColor || '#ffffff'}35`,
-                          fontSize: '0.66rem',
-                          padding: '2px 7px'
+                          border: `1px solid ${route.trafficColor || '#ffffff'}30`,
+                          fontSize: '0.68rem',
+                          padding: '3px 8px'
                         }}
                       >
                         ● {route.trafficLabel || 'Normal'}
                       </span>
                     </div>
 
-                    <div className="d-flex align-items-center gap-2 text-secondary" style={{ fontSize: '0.74rem' }}>
+                    <div className="d-flex align-items-center gap-2 text-secondary" style={{ fontSize: '0.78rem' }}>
                       <span>{formatDistance(route.distanceMeters)}</span>
-                      <span>•</span>
+                      <span className="opacity-50">•</span>
                       {delayText ? (
-                        <span style={{ color: '#f87171' }}>{delayText}</span>
+                        <span style={{ color: '#f87171', fontWeight: 600 }}>{delayText}</span>
                       ) : (
-                        <span style={{ color: '#86efac' }}>Free flow</span>
+                        <span style={{ color: '#86efac', fontWeight: 500 }}>Free flow</span>
                       )}
                     </div>
                   </div>
                 </div>
 
                 {/* Right: AI Score */}
-                <div className="text-end">
+                <div className="text-end ps-2">
                   <div
                     className="fw-bold fs-6"
                     style={{
@@ -170,53 +170,51 @@ export default function RouteCardList({
               {/* Comparative Reason for this route vs other alternatives */}
               <div className="route-comparison-box">
                 {/* Header with comparison badge & headline */}
-                <div className="d-flex align-items-center justify-content-between mb-1">
-                  <div className="d-flex align-items-center gap-1 flex-wrap">
-                    <span
-                      className="badge rounded-pill fw-semibold"
-                      style={{
-                        backgroundColor: comp.badgeBg,
-                        color: comp.badgeColor,
-                        border: `1px solid ${comp.badgeColor}40`,
-                        fontSize: '0.62rem',
-                        padding: '2px 7px'
-                      }}
-                    >
-                      {comp.badge}
-                    </span>
-                    <span className="fw-semibold text-light" style={{ fontSize: '0.72rem' }}>
-                      {comp.headline}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Plain-English summary comparison sentence */}
-                <div className="text-secondary mb-2" style={{ fontSize: '0.73rem', lineHeight: '1.35' }}>
-                  {comp.summary}
+                <div className="d-flex align-items-center gap-2 flex-wrap mb-2">
+                  <span
+                    className="badge rounded-pill fw-semibold"
+                    style={{
+                      backgroundColor: comp.badgeBg,
+                      color: comp.badgeColor,
+                      border: `1px solid ${comp.badgeColor}40`,
+                      fontSize: '0.66rem',
+                      padding: '3px 8px'
+                    }}
+                  >
+                    {comp.badge}
+                  </span>
+                  <span className="fw-semibold text-light" style={{ fontSize: '0.76rem' }}>
+                    {comp.headline}
+                  </span>
                 </div>
 
                 {/* Comparison Chips / Key Deltas */}
                 {comp.comparisonChips && comp.comparisonChips.length > 0 && (
-                  <div className="d-flex flex-wrap align-items-center gap-1 mb-1">
+                  <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
                     {comp.comparisonChips.map((chip, idx) => (
                       <span
                         key={idx}
                         className={`comparison-chip comparison-chip-${chip.type}`}
                       >
-                        {chip.label && <span className="opacity-75 me-1" style={{ fontSize: '0.58rem' }}>{chip.label}:</span>}
+                        {chip.label && <span className="opacity-75 me-1" style={{ fontSize: '0.62rem' }}>{chip.label}:</span>}
                         {chip.value}
                       </span>
                     ))}
                   </div>
                 )}
 
-                {/* Detailed comparative breakdown bullet points */}
-                {comp.bulletReasons && comp.bulletReasons.length > 0 && (
-                  <div className={`mt-2 pt-2 border-top border-secondary border-opacity-25 ${isSelected ? '' : 'd-none d-md-block'}`}>
+                {/* Plain-English summary comparison sentence */}
+                <div className="text-secondary" style={{ fontSize: '0.76rem', lineHeight: '1.45' }}>
+                  {comp.summary}
+                </div>
+
+                {/* Detailed comparative breakdown bullet points - ONLY for the selected card to avoid vertical congestion */}
+                {isSelected && comp.bulletReasons && comp.bulletReasons.length > 0 && (
+                  <div className="mt-2 pt-2 border-top border-white border-opacity-10">
                     <div className="d-flex flex-column gap-1">
-                      {(isSelected ? comp.bulletReasons : comp.bulletReasons.slice(0, 2)).map((reason, idx) => (
-                        <div key={idx} className="d-flex align-items-baseline gap-1" style={{ fontSize: '0.69rem' }}>
-                          <span style={{ color: comp.badgeColor }}>•</span>
+                      {comp.bulletReasons.slice(0, 2).map((reason, idx) => (
+                        <div key={idx} className="d-flex align-items-baseline gap-2" style={{ fontSize: '0.72rem' }}>
+                          <span style={{ color: comp.badgeColor }}>✓</span>
                           <span className="text-light opacity-90">{reason}</span>
                         </div>
                       ))}
@@ -366,17 +364,30 @@ export default function RouteCardList({
           {/* 15-Min ML Predictive Forecast HUD */}
           {forecast && (
             <div className="pt-2" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-              <div className="d-flex align-items-center justify-content-between mb-2">
-                <div className="d-flex align-items-center gap-1" style={{ fontSize: '0.76rem' }}>
+              <div className="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-1">
+                <div className="d-flex align-items-center gap-1 flex-wrap" style={{ fontSize: '0.76rem' }}>
                   <span style={{ color: 'var(--accent-cyan)' }}>⚡</span>
-                  <strong className="text-light">15-Min ML Traffic Forecast:</strong>
+                  <strong className="text-light">15-Min Traffic Forecast:</strong>
+                  <span
+                    className="badge rounded-pill"
+                    style={{
+                      backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                      color: '#38bdf8',
+                      border: '1px solid rgba(56, 189, 248, 0.35)',
+                      fontSize: '0.62rem',
+                      padding: '2px 6px'
+                    }}
+                    title="Powered by open-source ARIMA time-series model (https://github.com/zemirco/arima)"
+                  >
+                    ARIMA (1,0,1)
+                  </span>
                   <span
                     className="badge rounded-pill ms-1"
                     style={{
                       backgroundColor: `${forecast.trendBadgeColor}25`,
                       color: forecast.trendBadgeColor,
                       border: `1px solid ${forecast.trendBadgeColor}40`,
-                      fontSize: '0.68rem'
+                      fontSize: '0.66rem'
                     }}
                   >
                     {forecast.trendLabel}
@@ -389,25 +400,33 @@ export default function RouteCardList({
 
               {/* 4-Step Forecast Sparkline Nodes */}
               {Array.isArray(forecast.timeline) && (
-                <div className="d-flex justify-content-between gap-1 mb-1">
+                <div className="d-flex justify-content-between gap-1.5 mb-2">
                   {forecast.timeline.map((step) => {
                     const isTarget = step.offsetMinutes === 15;
+                    const isLive = step.offsetMinutes === 0;
                     return (
                       <div
                         key={step.offsetMinutes}
-                        className={`timeline-node text-center flex-fill py-1 px-1 ${isTarget ? 'highlight-target' : ''}`}
+                        className={`timeline-node text-center flex-fill py-1.5 px-1 ${isTarget ? 'highlight-target' : ''}`}
+                        style={{
+                          background: isTarget ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                          border: isTarget ? '1px solid rgba(56, 189, 248, 0.45)' : '1px solid rgba(255, 255, 255, 0.08)',
+                          borderRadius: '8px'
+                        }}
                       >
-                        <div className="text-secondary" style={{ fontSize: '0.62rem' }}>{step.label}</div>
+                        <div className="text-secondary" style={{ fontSize: '0.64rem', fontWeight: 500 }}>
+                          {isLive ? 'Live' : `+${step.offsetMinutes}m`}
+                        </div>
                         <div
-                          className="fw-bold"
+                          className="fw-bold my-0.5"
                           style={{
-                            fontSize: '0.74rem',
+                            fontSize: '0.78rem',
                             color: step.delayMinutes > 25 ? '#fca5a5' : (step.delayMinutes > 10 ? '#fde047' : '#86efac')
                           }}
                         >
-                          +{step.delayMinutes}m
+                          {formatDuration(step.durationSeconds)}
                         </div>
-                        <div className="text-muted" style={{ fontSize: '0.58rem' }}>
+                        <div className="text-muted" style={{ fontSize: '0.62rem' }}>
                           {step.averageSpeedKmph} km/h
                         </div>
                       </div>
@@ -416,9 +435,15 @@ export default function RouteCardList({
                 </div>
               )}
 
-              <div className="d-flex justify-content-between align-items-center mt-2 text-secondary" style={{ fontSize: '0.70rem' }}>
-                <span>Predicted Slowdown: <strong className="text-light">+{forecast.predictedDelayMinutes} min</strong></span>
-                <span className="text-info">● Active on Map</span>
+              <div className="d-flex justify-content-between align-items-center mt-2 text-secondary" style={{ fontSize: '0.72rem' }}>
+                <span>
+                  {forecast.recommendation ? (
+                    <strong className="text-light">{forecast.recommendation}</strong>
+                  ) : (
+                    <>Predicted Slowdown: <strong className="text-light">+{forecast.predictedDelayMinutes} min</strong></>
+                  )}
+                </span>
+                <span className="text-info font-monospace" style={{ fontSize: '0.68rem' }}>● ML Live</span>
               </div>
             </div>
           )}
