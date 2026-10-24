@@ -1,0 +1,24 @@
+{
+  "name": "smartroute-ai-server",
+  "version": "1.0.0",
+  "description": "SmartRoute AI Express Backend API",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "node --test tests/**/*.test.js",
+    "generate:key": "node scripts/generate-dev-key.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "supertest": "^6.3.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "smartroute-ai",
+  "version": "1.0.0",
+  "description": "SmartRoute AI - Intelligent Traffic-Aware Route Recommendation API & Dashboard",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install --prefix server && npm install --prefix client",
+    "server": "npm start --prefix server",
+    "dev:server": "npm run dev --prefix server",
+    "client": "npm run dev --prefix client",
+    "dev:client": "npm run dev --prefix client",
+    "test:server": "npm test --prefix server",
+    "generate:key": "npm run generate:key --prefix server"
+  },
+  "keywords": [
+    "traffic",
+    "routing",
+    "api",
+    "tomtom",
+    "smartroute",
+    "hackathon"
+  ],
+  "author": "SmartRoute AI Team",
+  "license": "MIT"
+}

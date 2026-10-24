@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "Route Wise",
+			"path": "."
+		},
+		{
+			"name": "jira",
+			"path": "../RAGNext/RAGNext/.agents/plugins/jira"
+		}
+	],
+	"settings": {}
+}

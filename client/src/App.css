@@ -1,0 +1,677 @@
+/* ==========================================================================
+   SmartRoute AI — Ultra-Clean Glassmorphism Design System
+   Modern Web Standards: color-scheme, color-mix(in oklab), accessible contrast
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'Consolas', 'Courier New', monospace;
+
+  /* Primary Brand Theme: Modern Electric Indigo & Royal Violet (Default) */
+  --accent-primary: #6366f1;
+  --accent-primary-light: #818cf8;
+  --accent-primary-hover: #4f46e5;
+  --accent-primary-glow: rgba(99, 102, 241, 0.35);
+
+  --accent-secondary: #06b6d4;
+  --accent-secondary-glow: rgba(6, 182, 212, 0.25);
+
+  --accent-violet: #a855f7;
+  --accent-violet-glow: rgba(168, 85, 247, 0.30);
+
+  --accent-green: #10b981;
+  --accent-green-glow: rgba(16, 185, 129, 0.25);
+  --accent-amber: #f59e0b;
+  --accent-amber-glow: rgba(245, 158, 11, 0.25);
+  --accent-red: #f43f5e;
+  --accent-red-glow: rgba(244, 63, 94, 0.25);
+
+  /* Backwards compatibility aliases */
+  --accent-cyan: var(--accent-primary-light);
+  --accent-cyan-glow: var(--accent-primary-glow);
+  --accent-indigo: var(--accent-primary-light);
+
+  /* Glassmorphic Obsidian Palette */
+  --glass-bg-base: #070913;
+  --glass-surface: rgba(15, 23, 42, 0.72);
+  --glass-surface-elevated: rgba(26, 38, 66, 0.80);
+  --glass-surface-card: rgba(13, 20, 38, 0.75);
+  --glass-surface-input: rgba(9, 14, 28, 0.78);
+  
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-border-subtle: rgba(255, 255, 255, 0.08);
+  --glass-border-highlight: rgba(255, 255, 255, 0.22);
+  --glass-border-glow: rgba(99, 102, 241, 0.45);
+
+  --glass-blur: blur(20px) saturate(190%);
+  --glass-blur-sm: blur(12px) saturate(180%);
+
+  /* Shadows */
+  --shadow-glass: 0 12px 35px -5px rgba(0, 0, 0, 0.60), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  --shadow-glass-card: 0 8px 24px -4px rgba(0, 0, 0, 0.50), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  --shadow-glass-hover: 0 18px 40px -8px rgba(0, 0, 0, 0.70), 0 0 25px var(--accent-primary-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* Theme: Cyber Cyan */
+[data-theme="cyan"] {
+  --accent-primary: #0284c7;
+  --accent-primary-light: #38bdf8;
+  --accent-primary-hover: #0369a1;
+  --accent-primary-glow: rgba(56, 189, 248, 0.35);
+  --accent-secondary: #818cf8;
+  --accent-cyan: #38bdf8;
+  --accent-cyan-glow: rgba(56, 189, 248, 0.25);
+  --glass-bg-base: #060b14;
+  --glass-border-glow: rgba(56, 189, 248, 0.45);
+}
+
+/* Theme: Emerald Mint (Eco Route) */
+[data-theme="emerald"] {
+  --accent-primary: #059669;
+  --accent-primary-light: #10b981;
+  --accent-primary-hover: #047857;
+  --accent-primary-glow: rgba(16, 185, 129, 0.35);
+  --accent-secondary: #06b6d4;
+  --accent-cyan: #10b981;
+  --accent-cyan-glow: rgba(16, 185, 129, 0.25);
+  --glass-bg-base: #040d0a;
+  --glass-border-glow: rgba(16, 185, 129, 0.45);
+}
+
+/* Theme: Sunset Amber */
+[data-theme="sunset"] {
+  --accent-primary: #d97706;
+  --accent-primary-light: #f59e0b;
+  --accent-primary-hover: #b45309;
+  --accent-primary-glow: rgba(245, 158, 11, 0.35);
+  --accent-secondary: #f43f5e;
+  --accent-cyan: #f59e0b;
+  --accent-cyan-glow: rgba(245, 158, 11, 0.25);
+  --glass-bg-base: #110905;
+  --glass-border-glow: rgba(245, 158, 11, 0.45);
+}
+
+/* Theme: Royal Violet */
+[data-theme="violet"] {
+  --accent-primary: #9333ea;
+  --accent-primary-light: #c084fc;
+  --accent-primary-hover: #7e22ce;
+  --accent-primary-glow: rgba(192, 132, 252, 0.35);
+  --accent-secondary: #f43f5e;
+  --accent-cyan: #c084fc;
+  --accent-cyan-glow: rgba(192, 132, 252, 0.25);
+  --glass-bg-base: #0c0616;
+  --glass-border-glow: rgba(192, 132, 252, 0.45);
+}
+
+/* Base Body with Dynamic Adaptive Mesh Gradient using color-mix */
+body, button, input, select, textarea, .badge, .form-control {
+  font-family: var(--font-sans) !important;
+}
+
+body {
+  background-color: var(--glass-bg-base);
+  background-image: 
+    radial-gradient(circle at 14% 15%, color-mix(in oklab, var(--accent-primary) 18%, transparent) 0%, transparent 45%),
+    radial-gradient(circle at 86% 20%, color-mix(in oklab, var(--accent-secondary) 16%, transparent) 0%, transparent 48%),
+    radial-gradient(circle at 50% 85%, color-mix(in oklab, var(--accent-green) 12%, transparent) 0%, transparent 55%),
+    radial-gradient(circle at 80% 75%, color-mix(in oklab, var(--accent-violet) 10%, transparent) 0%, transparent 40%);
+  background-attachment: fixed;
+  color: #f1f5f9;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* Modern Accessible Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--accent-primary-light) 40%, transparent) transparent;
+}
+
+/* Native form controls accent synchronization */
+input[type="range"],
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent-primary-light);
+}
+
+/* Normal typography across badges and metrics */
+.font-monospace {
+  font-family: var(--font-sans) !important;
+  letter-spacing: 0 !important;
+}
+
+code, pre {
+  font-family: var(--font-mono) !important;
+}
+
+/* Glassmorphism Containers & Cards */
+.glass-panel {
+  background: var(--glass-surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+  border-radius: 16px;
+}
+
+.glass-card {
+  background: var(--glass-surface-card);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass-card);
+  border-radius: 14px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+  border-color: var(--glass-border-glow);
+  box-shadow: var(--shadow-glass-hover);
+  transform: translateY(-2px);
+}
+
+/* Glass Navbar */
+.glass-navbar {
+  background: rgba(8, 12, 22, 0.82) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border) !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.45);
+}
+
+/* Brand Badge */
+.sra-brand-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-primary-light) 50%, var(--accent-secondary) 100%);
+  box-shadow: 0 0 15px var(--accent-primary-glow), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Glass Input Fields */
+.glass-input {
+  background: var(--glass-surface-input) !important;
+  border: 1px solid var(--glass-border) !important;
+  color: #f8fafc !important;
+  backdrop-filter: blur(10px);
+  border-radius: 8px !important;
+  transition: all 0.2s ease;
+}
+
+.glass-input:focus {
+  background: rgba(15, 23, 42, 0.88) !important;
+  border-color: var(--accent-primary-light) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent-primary) 28%, transparent) !important;
+  color: #ffffff !important;
+}
+
+.glass-input::placeholder {
+  color: #94a3b8 !important;
+  opacity: 0.8;
+}
+
+/* Glass Buttons */
+.glass-btn-primary {
+  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-primary-hover) 100%) !important;
+  border: 1px solid color-mix(in oklab, var(--accent-primary-light) 60%, #fff) !important;
+  color: white !important;
+  box-shadow: 0 4px 15px var(--accent-primary-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.glass-btn-primary:hover {
+  background: linear-gradient(135deg, var(--accent-primary-light) 0%, var(--accent-primary) 100%) !important;
+  box-shadow: 0 6px 20px var(--accent-primary-glow), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+.glass-btn-secondary {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid var(--glass-border) !important;
+  color: #e2e8f0 !important;
+  backdrop-filter: blur(10px);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.glass-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Glass Preset Pills */
+.glass-preset-pill {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border-subtle);
+  color: #cbd5e1;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.glass-preset-pill:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  transform: scale(1.02);
+}
+
+/* Route Cards Glass Variants & Modern Redesign */
+.route-card-modern {
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.route-card-modern:hover {
+  background: rgba(20, 30, 55, 0.82);
+  border-color: rgba(56, 189, 248, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px -5px rgba(0, 0, 0, 0.55), 0 0 15px rgba(56, 189, 248, 0.15);
+}
+
+.route-card-modern.is-selected {
+  border-color: var(--accent-cyan) !important;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%) !important;
+  box-shadow: 0 12px 32px -4px rgba(56, 189, 248, 0.35), 0 0 25px rgba(56, 189, 248, 0.22), inset 0 0 0 1px rgba(56, 189, 248, 0.4) !important;
+}
+
+.route-card-modern.is-recommended {
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.route-card-modern.is-recommended.is-selected {
+  border-color: var(--accent-cyan) !important;
+  box-shadow: 0 12px 32px -4px rgba(56, 189, 248, 0.35), 0 0 25px rgba(34, 197, 94, 0.25) !important;
+}
+
+/* Route Segment Filter / Tab Buttons */
+.route-segment-tab {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: #94a3b8;
+  font-size: 0.72rem;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.route-segment-tab:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: #ffffff;
+}
+
+.route-segment-tab.active {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(37, 99, 235, 0.35));
+  border-color: var(--accent-cyan);
+  color: #38bdf8;
+  font-weight: 600;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.3);
+}
+
+/* Micro Timeline Nodes */
+.timeline-node {
+  background: rgba(11, 17, 32, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 4px 6px;
+  transition: all 0.2s ease;
+}
+
+.timeline-node.highlight-target {
+  background: rgba(56, 189, 248, 0.14);
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+}
+
+
+/* Custom map markers & route badges */
+.custom-map-pin,
+.route-label-badge,
+.leaflet-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Sticky map column */
+@media (min-width: 992px) {
+  .sticky-map-column {
+    position: sticky;
+    top: 72px;
+    height: calc(100vh - 86px);
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* Responsive map container */
+.map-panel-container {
+  flex: 1 1 auto;
+  min-height: 480px;
+  height: 100%;
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+}
+
+/* Scrollable left route cards container - Clean auto height */
+.route-cards-scroll-area {
+  overflow: visible;
+}
+
+/* Unified Route Option Rows (Google / Apple Maps Style) */
+.route-option-row {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.route-option-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.route-option-row.is-active {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(15, 23, 42, 0.85) 100%) !important;
+  border-color: var(--accent-cyan) !important;
+  box-shadow: 0 4px 20px rgba(56, 189, 248, 0.22), inset 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+
+.route-option-row.is-recommended-row {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.route-radio-indicator {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.route-option-row.is-active .route-radio-indicator {
+  border-color: var(--accent-cyan);
+  background: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan);
+}
+
+.route-radio-indicator-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #090d16;
+}
+
+/* Route Comparison Rationale Box (Appears on every route card) */
+.route-comparison-box {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 8px;
+  transition: all 0.2s ease;
+}
+
+.route-option-row.is-active .route-comparison-box {
+  background: rgba(11, 20, 38, 0.88);
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.route-option-row.is-recommended-row .route-comparison-box {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.comparison-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.64rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.comparison-chip-positive {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.comparison-chip-negative {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.comparison-chip-warning {
+  background: rgba(234, 179, 8, 0.16);
+  color: #fde047;
+  border: 1px solid rgba(234, 179, 8, 0.35);
+}
+
+.comparison-chip-neutral {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Comparison Matrix Table */
+.comparison-matrix-table {
+  width: 100%;
+  font-size: 0.72rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.comparison-matrix-table th,
+.comparison-matrix-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.comparison-matrix-table th {
+  background: rgba(255, 255, 255, 0.05);
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  letter-spacing: 0.5px;
+}
+
+.comparison-matrix-table tr:last-child td {
+  border-bottom: none;
+}
+
+.comparison-matrix-table tr.active-row {
+  background: rgba(56, 189, 248, 0.12);
+}
+
+
+@media (max-width: 991px) {
+  .map-panel-container {
+    height: 480px;
+    min-height: 420px;
+  }
+}
+
+/* Sleek Dark/Neon Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(10, 15, 29, 0.6);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-cyan);
+}
+
+/* Pulsing Online Dot Animation */
+@keyframes pulseGlow {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+.pulse-active {
+  animation: pulseGlow 2s infinite;
+}
+
+/* Glass Modal Enhancements */
+.glass-modal-backdrop {
+  background: rgba(4, 7, 15, 0.75) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.glass-modal-content {
+  background: rgba(15, 23, 42, 0.88) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(56, 189, 248, 0.15) !important;
+  border-radius: 18px !important;
+  color: #f1f5f9;
+}
+
+/* Glass Alerts */
+.glass-alert-info {
+  background: rgba(56, 189, 248, 0.12) !important;
+  border: 1px solid rgba(56, 189, 248, 0.3) !important;
+  color: #bae6fd !important;
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+}
+
+.glass-alert-warning {
+  background: rgba(245, 158, 11, 0.12) !important;
+  border: 1px solid rgba(245, 158, 11, 0.3) !important;
+  color: #fde68a !important;
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+}
+
+.glass-alert-danger {
+  background: rgba(239, 68, 68, 0.14) !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  color: #fca5a5 !important;
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+}
+
+.glass-alert-success {
+  background: rgba(34, 197, 94, 0.12) !important;
+  border: 1px solid rgba(34, 197, 94, 0.3) !important;
+  color: #86efac !important;
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+}
+
+/* Glass Close Button */
+.glass-close-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.glass-close-btn:hover {
+  color: #ffffff;
+  transform: scale(1.15);
+}
+
+/* Form switch in dark glass */
+.form-check-input:checked {
+  background-color: var(--accent-cyan) !important;
+  border-color: var(--accent-cyan) !important;
+}
+
+.form-check-input {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Range input styling in glass */
+input[type="range"].form-range {
+  accent-color: var(--accent-cyan);
+}
+
+/* Leaflet Container Dark Frame Styling */
+.leaflet-container {
+  font-family: var(--font-sans) !important;
+  background-color: #0b1120 !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background: rgba(15, 23, 42, 0.92) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  color: #f1f5f9 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6) !important;
+}
+
+.leaflet-popup-tip {
+  background: rgba(15, 23, 42, 0.92) !important;
+}
+
+.leaflet-tooltip {
+  background: rgba(11, 17, 32, 0.90) !important;
+  backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  color: #f8fafc !important;
+  border-radius: 8px !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5) !important;
+  font-size: 0.75rem !important;
+}
+
