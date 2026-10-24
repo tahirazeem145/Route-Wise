@@ -32,25 +32,25 @@
   --accent-cyan-glow: var(--accent-primary-glow);
   --accent-indigo: var(--accent-primary-light);
 
-  /* Glassmorphic Obsidian Palette */
-  --glass-bg-base: #070913;
-  --glass-surface: rgba(15, 23, 42, 0.72);
-  --glass-surface-elevated: rgba(26, 38, 66, 0.80);
-  --glass-surface-card: rgba(13, 20, 38, 0.75);
-  --glass-surface-input: rgba(9, 14, 28, 0.78);
+  /* Glassmorphic Dark Obsidian / Pitch Black Palette */
+  --glass-bg-base: #030305;
+  --glass-surface: rgba(12, 12, 15, 0.85);
+  --glass-surface-elevated: rgba(20, 20, 24, 0.90);
+  --glass-surface-card: rgba(14, 14, 18, 0.86);
+  --glass-surface-input: rgba(8, 8, 10, 0.92);
   
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-border-subtle: rgba(255, 255, 255, 0.08);
-  --glass-border-highlight: rgba(255, 255, 255, 0.22);
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --glass-border-subtle: rgba(255, 255, 255, 0.06);
+  --glass-border-highlight: rgba(255, 255, 255, 0.18);
   --glass-border-glow: rgba(99, 102, 241, 0.45);
 
   --glass-blur: blur(20px) saturate(190%);
   --glass-blur-sm: blur(12px) saturate(180%);
 
   /* Shadows */
-  --shadow-glass: 0 12px 35px -5px rgba(0, 0, 0, 0.60), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  --shadow-glass-card: 0 8px 24px -4px rgba(0, 0, 0, 0.50), inset 0 1px 0 rgba(255, 255, 255, 0.10);
-  --shadow-glass-hover: 0 18px 40px -8px rgba(0, 0, 0, 0.70), 0 0 25px var(--accent-primary-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  --shadow-glass: 0 12px 35px -5px rgba(0, 0, 0, 0.70), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  --shadow-glass-card: 0 8px 24px -4px rgba(0, 0, 0, 0.60), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  --shadow-glass-hover: 0 18px 40px -8px rgba(0, 0, 0, 0.80), 0 0 25px var(--accent-primary-glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 /* Theme: Cyber Cyan */
@@ -62,7 +62,7 @@
   --accent-secondary: #818cf8;
   --accent-cyan: #38bdf8;
   --accent-cyan-glow: rgba(56, 189, 248, 0.25);
-  --glass-bg-base: #060b14;
+  --glass-bg-base: #020305;
   --glass-border-glow: rgba(56, 189, 248, 0.45);
 }
 
@@ -75,7 +75,7 @@
   --accent-secondary: #06b6d4;
   --accent-cyan: #10b981;
   --accent-cyan-glow: rgba(16, 185, 129, 0.25);
-  --glass-bg-base: #040d0a;
+  --glass-bg-base: #020403;
   --glass-border-glow: rgba(16, 185, 129, 0.45);
 }
 
@@ -88,7 +88,7 @@
   --accent-secondary: #f43f5e;
   --accent-cyan: #f59e0b;
   --accent-cyan-glow: rgba(245, 158, 11, 0.25);
-  --glass-bg-base: #110905;
+  --glass-bg-base: #040201;
   --glass-border-glow: rgba(245, 158, 11, 0.45);
 }
 
@@ -101,7 +101,7 @@
   --accent-secondary: #f43f5e;
   --accent-cyan: #c084fc;
   --accent-cyan-glow: rgba(192, 132, 252, 0.25);
-  --glass-bg-base: #0c0616;
+  --glass-bg-base: #030105;
   --glass-border-glow: rgba(192, 132, 252, 0.45);
 }
 
@@ -113,10 +113,10 @@ body, button, input, select, textarea, .badge, .form-control {
 body {
   background-color: var(--glass-bg-base);
   background-image: 
-    radial-gradient(circle at 14% 15%, color-mix(in oklab, var(--accent-primary) 18%, transparent) 0%, transparent 45%),
-    radial-gradient(circle at 86% 20%, color-mix(in oklab, var(--accent-secondary) 16%, transparent) 0%, transparent 48%),
-    radial-gradient(circle at 50% 85%, color-mix(in oklab, var(--accent-green) 12%, transparent) 0%, transparent 55%),
-    radial-gradient(circle at 80% 75%, color-mix(in oklab, var(--accent-violet) 10%, transparent) 0%, transparent 40%);
+    radial-gradient(circle at 14% 15%, color-mix(in oklab, var(--accent-primary) 7%, transparent) 0%, transparent 45%),
+    radial-gradient(circle at 86% 20%, color-mix(in oklab, var(--accent-secondary) 5%, transparent) 0%, transparent 48%),
+    radial-gradient(circle at 50% 85%, color-mix(in oklab, var(--accent-green) 4%, transparent) 0%, transparent 55%),
+    radial-gradient(circle at 80% 75%, color-mix(in oklab, var(--accent-violet) 4%, transparent) 0%, transparent 40%);
   background-attachment: fixed;
   color: #f1f5f9;
   margin: 0;
@@ -176,11 +176,11 @@ code, pre {
 
 /* Glass Navbar */
 .glass-navbar {
-  background: rgba(8, 12, 22, 0.82) !important;
+  background: rgba(6, 6, 8, 0.90) !important;
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border-bottom: 1px solid var(--glass-border) !important;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.70);
 }
 
 /* Brand Badge */
@@ -207,7 +207,7 @@ code, pre {
 }
 
 .glass-input:focus {
-  background: rgba(15, 23, 42, 0.88) !important;
+  background: rgba(14, 14, 18, 0.95) !important;
   border-color: var(--accent-primary-light) !important;
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent-primary) 28%, transparent) !important;
   color: #ffffff !important;
@@ -272,7 +272,7 @@ code, pre {
 
 /* Route Cards Glass Variants & Modern Redesign */
 .route-card-modern {
-  background: rgba(15, 23, 42, 0.72);
+  background: rgba(12, 12, 15, 0.85);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-border);
@@ -284,15 +284,15 @@ code, pre {
 }
 
 .route-card-modern:hover {
-  background: rgba(20, 30, 55, 0.82);
+  background: rgba(20, 20, 25, 0.92);
   border-color: rgba(56, 189, 248, 0.4);
   transform: translateY(-2px);
-  box-shadow: 0 10px 28px -5px rgba(0, 0, 0, 0.55), 0 0 15px rgba(56, 189, 248, 0.15);
+  box-shadow: 0 10px 28px -5px rgba(0, 0, 0, 0.75), 0 0 15px rgba(56, 189, 248, 0.15);
 }
 
 .route-card-modern.is-selected {
   border-color: var(--accent-cyan) !important;
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%) !important;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.10) 0%, rgba(12, 12, 16, 0.95) 100%) !important;
   box-shadow: 0 12px 32px -4px rgba(56, 189, 248, 0.35), 0 0 25px rgba(56, 189, 248, 0.22), inset 0 0 0 1px rgba(56, 189, 248, 0.4) !important;
 }
 
@@ -333,7 +333,7 @@ code, pre {
 
 /* Micro Timeline Nodes */
 .timeline-node {
-  background: rgba(11, 17, 32, 0.7);
+  background: rgba(10, 10, 14, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   padding: 4px 6px;
@@ -401,7 +401,7 @@ code, pre {
 }
 
 .route-option-row.is-active {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(15, 23, 42, 0.85) 100%) !important;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.12) 0%, rgba(12, 12, 16, 0.95) 100%) !important;
   border-color: var(--accent-cyan) !important;
   box-shadow: 0 4px 20px rgba(56, 189, 248, 0.22), inset 0 0 0 1px rgba(56, 189, 248, 0.35);
 }
@@ -432,12 +432,12 @@ code, pre {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #090d16;
+  background: #000000;
 }
 
 /* Route Comparison Rationale Box (Appears on every route card) */
 .route-comparison-box {
-  background: rgba(15, 23, 42, 0.65);
+  background: rgba(12, 12, 16, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   padding: 8px 10px;
@@ -446,7 +446,7 @@ code, pre {
 }
 
 .route-option-row.is-active .route-comparison-box {
-  background: rgba(11, 20, 38, 0.88);
+  background: rgba(16, 16, 22, 0.95);
   border-color: rgba(56, 189, 248, 0.3);
 }
 
@@ -496,7 +496,7 @@ code, pre {
   border-spacing: 0;
   border-radius: 8px;
   overflow: hidden;
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(10, 10, 14, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -538,7 +538,7 @@ code, pre {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(10, 15, 29, 0.6);
+  background: rgba(8, 8, 10, 0.8);
   border-radius: 8px;
 }
 
@@ -564,15 +564,15 @@ code, pre {
 
 /* Glass Modal Enhancements */
 .glass-modal-backdrop {
-  background: rgba(4, 7, 15, 0.75) !important;
+  background: rgba(0, 0, 0, 0.88) !important;
   backdrop-filter: blur(12px) !important;
 }
 
 .glass-modal-content {
-  background: rgba(15, 23, 42, 0.88) !important;
+  background: rgba(12, 12, 16, 0.96) !important;
   backdrop-filter: var(--glass-blur) !important;
   border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(56, 189, 248, 0.15) !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 40px rgba(56, 189, 248, 0.15) !important;
   border-radius: 18px !important;
   color: #f1f5f9;
 }
@@ -649,29 +649,29 @@ input[type="range"].form-range {
 /* Leaflet Container Dark Frame Styling */
 .leaflet-container {
   font-family: var(--font-sans) !important;
-  background-color: #0b1120 !important;
+  background-color: #050505 !important;
 }
 
 .leaflet-popup-content-wrapper {
-  background: rgba(15, 23, 42, 0.92) !important;
+  background: rgba(12, 12, 16, 0.96) !important;
   backdrop-filter: blur(12px) !important;
   border: 1px solid rgba(255, 255, 255, 0.18) !important;
   color: #f1f5f9 !important;
   border-radius: 12px !important;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6) !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8) !important;
 }
 
 .leaflet-popup-tip {
-  background: rgba(15, 23, 42, 0.92) !important;
+  background: rgba(12, 12, 16, 0.96) !important;
 }
 
 .leaflet-tooltip {
-  background: rgba(11, 17, 32, 0.90) !important;
+  background: rgba(10, 10, 14, 0.95) !important;
   backdrop-filter: blur(8px) !important;
   border: 1px solid rgba(255, 255, 255, 0.18) !important;
   color: #f8fafc !important;
   border-radius: 8px !important;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5) !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.7) !important;
   font-size: 0.75rem !important;
 }
 
