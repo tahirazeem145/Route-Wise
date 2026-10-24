@@ -427,7 +427,54 @@ code, pre {
   overflow: visible;
 }
 
-/* Unified Route Option Rows (Google / Apple Maps Clean Spacing) */
+/* Unified Route Card & Option Glass (Matching Search Form Structure) */
+.route-card-glass {
+  background: var(--glass-surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+  border-radius: 16px;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.route-card-glass:hover {
+  border-color: rgba(56, 189, 248, 0.45);
+  transform: translateY(-2px);
+  box-shadow: 0 14px 35px -5px rgba(0, 0, 0, 0.80), 0 0 20px rgba(56, 189, 248, 0.20);
+}
+
+.route-card-glass.is-active {
+  border-color: var(--accent-cyan) !important;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.10) 0%, rgba(12, 12, 16, 0.95) 100%) !important;
+  box-shadow: 0 14px 35px -5px rgba(0, 0, 0, 0.85), 0 0 25px rgba(56, 189, 248, 0.35), inset 0 0 0 1px rgba(56, 189, 248, 0.45) !important;
+}
+
+.route-card-glass.is-recommended-card {
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.route-card-glass.is-recommended-card.is-active {
+  border-color: var(--accent-cyan) !important;
+  box-shadow: 0 14px 35px -5px rgba(0, 0, 0, 0.85), 0 0 25px rgba(34, 197, 94, 0.30), inset 0 0 0 1px rgba(56, 189, 248, 0.45) !important;
+}
+
+/* Card Inner Field Box (matches Origin / Destination field style) */
+.card-field-box {
+  background: var(--glass-surface-input);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  transition: all 0.2s ease;
+}
+
+.card-field-box:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
 .route-option-row {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);

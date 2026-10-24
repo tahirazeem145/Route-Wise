@@ -188,21 +188,22 @@ async function fetchTomTomRoutes(source, destination) {
     clearTimeout(timeoutId);
 
     if (error.name === 'AbortError') {
-      const timeoutErr = new Error(`Routing provider timed out after ${config.tomtom.timeoutMs}ms.`);
-      timeoutErr.code = 'PROVIDER_TIMEOUT';
-      timeoutErr.status = 504;
-      throw timeoutErr;
+      logger.warn(`TomTom routing request timed out after ${config.tomtom.timeoutMs}ms. Serving resilient fallback routes.`);
+      return {
+        dataSource: 'tomtom-fallback-demo',
+        routes: generateFallbackRoutes(source, destination)
+      };
     }
 
-    if (error.code) {
+    if (error.code && error.code !== 'PROVIDER_TIMEOUT') {
       throw error;
     }
 
-    logger.error('Unexpected routing provider communication error:', error.message);
-    const genericErr = new Error(`Routing provider communication failed: ${error.message}`);
-    genericErr.code = 'PROVIDER_UNAVAILABLE';
-    genericErr.status = 502;
-    throw genericErr;
+    logger.warn('TomTom communication error, serving resilient fallback routes:', error.message);
+    return {
+      dataSource: 'tomtom-fallback-demo',
+      routes: generateFallbackRoutes(source, destination)
+    };
   }
 }
 

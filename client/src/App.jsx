@@ -200,6 +200,30 @@ export default function App() {
 
           {/* Right Panel: Interactive Map & Legend */}
           <div className="col-lg-7 col-xl-7 d-flex flex-column sticky-map-column">
+            <div className="glass-panel p-3 mb-2 d-flex align-items-center justify-content-between">
+              <h6 className="card-title fw-bold text-white mb-0 d-flex align-items-center gap-2">
+                <span
+                  className="d-flex align-items-center justify-content-center rounded-circle"
+                  style={{
+                    width: 26,
+                    height: 26,
+                    background: 'rgba(56, 189, 248, 0.2)',
+                    border: '1px solid rgba(56, 189, 248, 0.4)'
+                  }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+                    <line x1="8" y1="2" x2="8" y2="18"/>
+                    <line x1="16" y1="6" x2="16" y2="22"/>
+                  </svg>
+                </span>
+                <span>Live Interactive Route & Heatmap</span>
+              </h6>
+              <span className="badge font-monospace" style={{ fontSize: '0.68rem', background: 'rgba(255, 255, 255, 0.08)', color: '#94a3b8' }}>
+                TomTom Telemetry
+              </span>
+            </div>
+
             <div className="map-panel-container flex-grow-1 mb-2">
               <MapView
                 source={sourceMeta}
