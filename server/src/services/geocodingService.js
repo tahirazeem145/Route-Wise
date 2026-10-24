@@ -5,6 +5,28 @@ const logger = require('../utils/logger');
 const KNOWN_LOCATIONS = {
   'tiruchirappalli': { lat: 10.7905, lng: 78.7047, name: 'Tiruchirappalli, Tamil Nadu, India' },
   'trichy': { lat: 10.7905, lng: 78.7047, name: 'Tiruchirappalli, Tamil Nadu, India' },
+  'central bus stand, trichy': { lat: 10.7932, lng: 78.6865, name: 'Central Bus Stand, Trichy' },
+  'cbs trichy': { lat: 10.7932, lng: 78.6865, name: 'Central Bus Stand, Trichy' },
+  'chathiram bus stand, trichy': { lat: 10.8294, lng: 78.6942, name: 'Chathiram Bus Stand, Trichy' },
+  'chathiram trichy': { lat: 10.8294, lng: 78.6942, name: 'Chathiram Bus Stand, Trichy' },
+  'thillai nagar, trichy': { lat: 10.8228, lng: 78.6854, name: 'Thillai Nagar, Trichy' },
+  'thillai nagar': { lat: 10.8228, lng: 78.6854, name: 'Thillai Nagar, Trichy' },
+  'srirangam rajagopuram, trichy': { lat: 10.8622, lng: 78.6902, name: 'Srirangam Rajagopuram, Trichy' },
+  'srirangam': { lat: 10.8622, lng: 78.6902, name: 'Srirangam Rajagopuram, Trichy' },
+  'head post office junction, trichy': { lat: 10.8033, lng: 78.6874, name: 'Head Post Office Junction, Trichy' },
+  'hpo junction trichy': { lat: 10.8033, lng: 78.6874, name: 'Head Post Office Junction, Trichy' },
+  'palakkarai junction, trichy': { lat: 10.8123, lng: 78.6924, name: 'Palakkarai Junction, Trichy' },
+  'palakkarai': { lat: 10.8123, lng: 78.6924, name: 'Palakkarai Junction, Trichy' },
+  'gandhi market, trichy': { lat: 10.8175, lng: 78.6970, name: 'Gandhi Market, Trichy' },
+  'mambazhasalai, trichy': { lat: 10.8415, lng: 78.6928, name: 'Mambazhasalai Kaveri Bridge, Trichy' },
+  'tvs tollgate junction, trichy': { lat: 10.7812, lng: 78.7011, name: 'TVS Tollgate Junction, Trichy' },
+  'tvs tollgate': { lat: 10.7812, lng: 78.7011, name: 'TVS Tollgate Junction, Trichy' },
+  'ponmalai (golden rock), trichy': { lat: 10.7876, lng: 78.7183, name: 'Ponmalai (Golden Rock), Trichy' },
+  'golden rock': { lat: 10.7876, lng: 78.7183, name: 'Ponmalai (Golden Rock), Trichy' },
+  'tiruchirappalli international airport': { lat: 10.7654, lng: 78.7126, name: 'Tiruchirappalli International Airport' },
+  'trichy airport': { lat: 10.7654, lng: 78.7126, name: 'Tiruchirappalli International Airport' },
+  'nit trichy (thuvakudi)': { lat: 10.7589, lng: 78.8132, name: 'NIT Trichy (Thuvakudi)' },
+  'nit trichy': { lat: 10.7589, lng: 78.8132, name: 'NIT Trichy (Thuvakudi)' },
   'coimbatore': { lat: 11.0168, lng: 76.9558, name: 'Coimbatore, Tamil Nadu, India' },
   'kovai': { lat: 11.0168, lng: 76.9558, name: 'Coimbatore, Tamil Nadu, India' },
   'chennai': { lat: 13.0827, lng: 80.2707, name: 'Chennai, Tamil Nadu, India' },
@@ -196,6 +218,27 @@ async function geocodeLocation(input) {
   throw new Error(`Location "${query}" could not be resolved to coordinates. Please enter a recognized city or "lat, lng" coordinates.`);
 }
 
+// In-memory cache for location autocomplete searches
+const searchCache = new Map();
+const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function getCachedSearch(key) {
+  const item = searchCache.get(key);
+  if (item && Date.now() - item.time < SEARCH_CACHE_TTL_MS) {
+    return item.data;
+  }
+  if (item) searchCache.delete(key);
+  return null;
+}
+
+function setCachedSearch(key, data) {
+  if (searchCache.size > 300) {
+    const oldest = searchCache.keys().next().value;
+    searchCache.delete(oldest);
+  }
+  searchCache.set(key, { data, time: Date.now() });
+}
+
 /**
  * Autocomplete location search: returns up to `limit` suggestions matching query
  */
@@ -213,6 +256,12 @@ async function searchLocations(query, limit = 5) {
       municipality: 'Coordinates',
       country: ''
     }];
+  }
+
+  const cacheKey = `${q.toLowerCase()}:${limit}`;
+  const cached = getCachedSearch(cacheKey);
+  if (cached) {
+    return cached;
   }
 
   const results = [];
@@ -263,24 +312,48 @@ async function searchLocations(query, limit = 5) {
   }
 
   // 2. Supplement or fallback with verified known locations matching query
-  const normalized = q.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const cleanQ = q.toLowerCase();
+  const normalized = cleanQ.replace(/[^a-z0-9]/g, '');
   const seenNames = new Set(results.map(r => r.name.toLowerCase()));
 
   for (const [key, loc] of Object.entries(KNOWN_LOCATIONS)) {
     if (results.length >= limit) break;
-    if ((key.includes(normalized) || loc.name.toLowerCase().includes(normalized)) && !seenNames.has(loc.name.toLowerCase())) {
-      seenNames.add(loc.name.toLowerCase());
+    const cleanKey = key.toLowerCase();
+    const normKey = cleanKey.replace(/[^a-z0-9]/g, '');
+    const cleanLocName = loc.name.toLowerCase();
+    const normLocName = cleanLocName.replace(/[^a-z0-9]/g, '');
+
+    const matches = cleanKey.includes(cleanQ) || 
+                    normKey.includes(normalized) || 
+                    cleanLocName.includes(cleanQ) || 
+                    normLocName.includes(normalized);
+
+    if (matches && !seenNames.has(cleanLocName)) {
+      seenNames.add(cleanLocName);
+      const isJunction = cleanKey.includes('junction') || 
+                         cleanKey.includes('bus stand') || 
+                         cleanKey.includes('tollgate') || 
+                         cleanKey.includes('market') || 
+                         cleanKey.includes('bridge') ||
+                         cleanKey.includes('airport') ||
+                         cleanKey.includes('thillai') ||
+                         cleanKey.includes('srirangam') ||
+                         cleanKey.includes('nit trichy');
+
       results.push({
         name: loc.name,
         lat: loc.lat,
         lng: loc.lng,
         municipality: loc.name.split(',')[0],
-        country: 'India'
+        country: 'India',
+        isJunction: Boolean(isJunction)
       });
     }
   }
 
-  return results.slice(0, limit);
+  const finalResults = results.slice(0, limit);
+  setCachedSearch(cacheKey, finalResults);
+  return finalResults;
 }
 
 module.exports = {

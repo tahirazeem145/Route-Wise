@@ -2,8 +2,63 @@ const { geocodeLocation, searchLocations } = require('../services/geocodingServi
 const { fetchTomTomRoutes } = require('../services/tomtomService');
 const { rankRoutes } = require('../services/routeRankingService');
 const { predictRouteTraffic } = require('../services/predictiveTrafficService');
+const { getDatabase, haversineDistanceMeters } = require('../models/db');
 const { successResponse, errorResponse } = require('../utils/response');
 const logger = require('../utils/logger');
+
+function enrichAndRankRoutes(rawRoutes, weights) {
+  const db = getDatabase();
+  db.expireStaleReports();
+  const activeIncidents = db.listActiveReports();
+
+  // Telemetry speed-drop verification check (Section 4.1):
+  // Check if any candidate route with traffic delay >= 3 mins (or heavy severity) crosses an unverified report
+  for (const route of rawRoutes) {
+    if ((route.trafficDelaySeconds >= 180 || route.trafficSeverity === 'heavy') && Array.isArray(route.geometry)) {
+      for (const inc of activeIncidents) {
+        if (inc.status === 'Unverified') {
+          const isNearRoute = route.geometry.some(pt => {
+            const [pLat, pLng] = Array.isArray(pt) ? pt : [pt.lat, pt.lng];
+            return haversineDistanceMeters(pLat, pLng, inc.latitude, inc.longitude) <= 300;
+          });
+
+          if (isNearRoute) {
+            const impactMins = Math.max(3, Math.round((route.trafficDelaySeconds || 0) / 60));
+            db.updateReportStatus(inc.id, {
+              status: 'Verified',
+              verificationReason: 'telemetry_match',
+              estimatedImpactMinutes: impactMins
+            });
+            inc.status = 'Verified';
+            inc.verificationReason = 'telemetry_match';
+            inc.estimatedImpactMinutes = impactMins;
+            logger.info(`[TELEMETRY MATCH] Auto-verified community incident ${inc.id} (${inc.type}) based on TomTom delay (+${impactMins}m)`);
+          }
+        }
+      }
+    }
+  }
+
+  const verifiedIncidents = activeIncidents.filter(r => r.status === 'Verified');
+  const unverifiedReports = activeIncidents.filter(r => r.status === 'Unverified');
+
+  // Rank routes using corrected Section 5 ranking engine
+  const rankingResult = rankRoutes(rawRoutes, {
+    customWeights: weights,
+    verifiedIncidents,
+    unverifiedReports
+  });
+
+  const enrichedRoutes = rankingResult.routes.map(r => ({
+    ...r,
+    predictiveForecast: predictRouteTraffic(r)
+  }));
+
+  return {
+    rankingResult,
+    enrichedRoutes
+  };
+}
 
 async function recommendRoutes(req, res) {
   try {
@@ -42,16 +97,10 @@ async function recommendRoutes(req, res) {
       );
     }
 
-    // 3. Rank alternatives using multi-criteria cost engine
-    const rankingResult = rankRoutes(rawRoutes, weights);
+    // 3. Rank alternatives using multi-criteria cost engine and verified incidents
+    const { rankingResult, enrichedRoutes } = enrichAndRankRoutes(rawRoutes, weights);
 
-    // 4. Augment each route with short-term predictive ML traffic forecast (+15m, +30m, +45m)
-    const enrichedRoutes = rankingResult.routes.map(r => ({
-      ...r,
-      predictiveForecast: predictRouteTraffic(r)
-    }));
-
-    // 5. Return structured response
+    // 4. Return structured response
     return successResponse(res, {
       source: {
         name: resolvedSource.name,
@@ -110,12 +159,7 @@ async function refreshRoutes(req, res) {
       return errorResponse(res, 'NO_ROUTES_FOUND', 'No updated routes found.', 404);
     }
 
-    const rankingResult = rankRoutes(rawRoutes, weights);
-
-    const enrichedRoutes = rankingResult.routes.map(r => ({
-      ...r,
-      predictiveForecast: predictRouteTraffic(r)
-    }));
+    const { rankingResult, enrichedRoutes } = enrichAndRankRoutes(rawRoutes, weights);
 
     return successResponse(res, {
       isRefreshed: true,

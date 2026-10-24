@@ -294,6 +294,23 @@ code, pre {
   transform: scale(1.03);
 }
 
+/* Glass Corridor Preset Cards */
+.glass-preset-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  width: 100%;
+}
+
+.glass-preset-card:hover {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.4);
+  transform: translateX(2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
 /* Glass Swap Button */
 .glass-swap-btn {
   background: rgba(255, 255, 255, 0.08) !important;
@@ -768,7 +785,7 @@ input[type="range"].form-range {
   font-size: 0.75rem !important;
 }
 
-/* Location Autocomplete Dropdown */
+/* Location Autocomplete Dropdown & Input Controls */
 .autocomplete-container {
   position: relative;
 }
@@ -778,22 +795,33 @@ input[type="range"].form-range {
   top: 100%;
   left: 0;
   right: 0;
-  z-index: 1060;
-  background: rgba(12, 14, 22, 0.98);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 8px;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.85), 0 0 20px rgba(99, 102, 241, 0.2);
+  z-index: 1070;
+  background: rgba(12, 14, 24, 0.98);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 10px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.88), 0 0 24px rgba(56, 189, 248, 0.15);
   margin-top: 4px;
-  max-height: 220px;
+  max-height: 240px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.3) rgba(15, 23, 42, 0.6);
+}
+
+.autocomplete-dropdown::-webkit-scrollbar {
+  width: 5px;
+}
+
+.autocomplete-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.35);
+  border-radius: 4px;
 }
 
 .autocomplete-item {
-  padding: 8px 10px;
+  padding: 8px 12px;
   cursor: pointer;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   transition: all 0.15s ease;
   display: flex;
   flex-direction: column;
@@ -804,19 +832,20 @@ input[type="range"].form-range {
 }
 
 .autocomplete-item:hover,
-.autocomplete-item:focus {
-  background: rgba(99, 102, 241, 0.22);
-  border-left: 3px solid var(--accent-primary-light);
-  padding-left: 12px;
+.autocomplete-item:focus,
+.autocomplete-item.is-selected {
+  background: rgba(56, 189, 248, 0.15);
+  border-left: 3px solid #38bdf8;
+  padding-left: 14px;
 }
 
 .autocomplete-title {
-  font-size: 0.80rem;
+  font-size: 0.82rem;
   font-weight: 600;
   color: #f8fafc;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .autocomplete-sub {
@@ -833,14 +862,52 @@ input[type="range"].form-range {
   font-size: 0.64rem;
   color: #38bdf8;
   background: rgba(56, 189, 248, 0.12);
-  padding: 1px 4px;
+  padding: 1px 5px;
   border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.2);
 }
 
-.autocomplete-item.is-selected {
-  background: rgba(99, 102, 241, 0.28);
-  border-left: 3px solid var(--accent-primary-light);
-  padding-left: 12px;
+/* Embedded Clear Input Button */
+.glass-input-clear-btn {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #94a3b8 !important;
+  font-size: 0.95rem !important;
+  line-height: 1 !important;
+  padding: 0 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-top-right-radius: 8px !important;
+  border-bottom-right-radius: 8px !important;
+  transition: all 0.15s ease !important;
+}
+
+.glass-input-clear-btn:hover {
+  background: rgba(239, 68, 68, 0.2) !important;
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  color: #f87171 !important;
+}
+
+/* Trichy Key Junction Chips */
+.junction-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  padding: 3px 9px;
+  border-radius: 12px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.junction-chip:hover {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #38bdf8;
+  transform: translateY(-1px);
 }
 
 
@@ -901,5 +968,30 @@ input[type="range"].form-range {
   box-shadow: 0 4px 12px rgba(56, 189, 248, 0.2);
 }
 
+/* Custom Community Incident Marker Pins */
+.custom-incident-pin {
+  background: transparent !important;
+  border: none !important;
+}
 
+/* Modern <dialog> backdrop adhering to modern-web-guidance */
+dialog.modern-dialog-overlay {
+  animation: dialog-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
+dialog.modern-dialog-overlay::backdrop {
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+@keyframes dialog-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

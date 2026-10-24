@@ -1,368 +1,181 @@
-# SmartRoute AI — Intelligent Traffic-Aware Route Recommendation API
+# RouteWise (SmartRoute AI) — Intelligent Traffic-Aware Route Recommendation & Community Advisory Platform
 
-> **Developer-focused traffic intelligence API and interactive dashboard for evaluating, ranking, and visualizing route alternatives with live congestion delays.**
+> **Developer-focused traffic intelligence API and interactive commuter dashboard for evaluating, ranking, and visualizing route alternatives with live congestion delays, community incident verification, municipal authority hotspot triage, and native Google Maps navigation handoff.**
 
-Built for hackathons, logistics platforms, and mobility integrations.
+Built for hackathons, municipal transport dispatchers, commuters, and logistics fleet integrations.
 
 ---
 
-## 1. Project Overview
+## 1. Project Overview & Capabilities
 
-SmartRoute AI is an API-first service that solves a fundamental challenge for developers: choosing between route alternatives based on **customizable, multi-criteria ranking** rather than blindly taking the default provider recommendation.
-
-Given an origin and a destination, SmartRoute AI:
-1. Geocodes locations into coordinates (via TomTom or fallback dictionary).
-2. Queries the routing provider for up to 3 driving alternatives with real-time traffic delay metrics.
-3. Normalizes geometry and delay data into standard GeoJSON and metric formats.
-4. Ranks candidate routes using configurable weights (travel time, traffic delay penalty, distance).
-5. Categorizes traffic severity (Green = Low, Yellow = Moderate, Red = Heavy) independently of recommendation ranking.
-6. Returns structured JSON with explicit recommendation reasons.
-7. Displays routes on an interactive Leaflet map canvas with a live 60-second auto-refresh countdown.
+RouteWise is an API-first routing and traffic advisory platform that solves junction bottlenecks and congested arterial delays through:
+1. **Multi-Route Ingestion & Geocoding:** Converts location queries or map pins to coordinates via TomTom Routing and Search APIs (with resilient offline dictionary fallback).
+2. **Route-Ranking Overhaul & Switch Threshold:** Ranks primarily by Adjusted ETA without double-counting provider delay. Applies a strict Switch Threshold (`timeSaved >= max(180s, 0.10 * mainRouteEta)`) to prevent erratic recommendation flapping.
+3. **F4 Community Incident Reporting:** Commuters report 6 structured conditions (`congestion`, `roadblock`, `roadwork`, `procession`, `signal_failure`, `waterlogging`). Automatic deduplication within 100 meters.
+4. **2-Vote Verification & Telemetry Engine:** Reports automatically transition from *Unverified* to *Verified* upon 2 community confirmations or when correlated with a TomTom speed-drop (&gt;30%).
+5. **Interactive Leaflet Map with One-Tap Voting:** Verified incidents render with solid pulses and green checkmarks; unverified incidents render with dashed outlines and warning symbols. Commuters can confirm or deny conditions directly inside Leaflet popups.
+6. **F5 Municipal Authority Console:** Protected dashboard (`X-Authority-Role: admin`) ranking active corridor hotspots by impact and age, calculating 7-day spatial recurrence within 150m, and enabling 1-click incident resolution with officer audit trails.
+7. **Google Maps Corridor Handoff:** Extracts up to 3 non-straight-line decision anchors ($\le 3$ waypoints, safe URL length $< 2,048$ characters) to guarantee Google Maps directions retain RouteWise's bypass corridor with driving and two-wheeler support.
+8. **Persistent Native SQLite Storage:** Built on Node 24's native `node:sqlite` (`DatabaseSync`) with Write-Ahead Logging (WAL) and spatial bounding-box Haversine indexing. Zero external C++ compilation dependencies.
 
 ---
 
 ## 2. Technology Stack
 
-* **Backend:** Node.js, Express.js, native `fetch`, crypto (SHA-256 for API keys)
-* **Frontend:** React 18, Vite, Bootstrap 5, Leaflet, OpenStreetMap tiles
-* **Provider:** TomTom Routing & Search APIs (with high-fidelity offline/transparent demo fallback)
-* **Testing:** Node.js native test runner (`node --test`), Supertest
-* **Data Persistence:** File-based cryptographic key store (`server/data/keys.json`), `localStorage` for client preferences
+* **Backend:** Node.js 24, Express.js, native `node:sqlite` (`DatabaseSync`), native `fetch`, crypto (SHA-256 for API keys)
+* **Frontend:** React 18, Vite, Leaflet, OpenStreetMap tiles, Lucide React icons, Bootstrap 5 dark glassmorphism
+* **Routing Telemetry Provider:** TomTom Routing & Traffic Flow Raster Tile APIs (with high-fidelity offline/transparent demo fallback)
+* **Automated Testing:** Node.js native test runner (`node --test`), Supertest
+* **Data Persistence:** Native SQLite database (`server/data/routewise.db`), SHA-256 key store (`server/data/keys.json`), `localStorage` for pseudonymous UUID user keys
 
 ---
 
 ## 3. Project Directory Structure
 
 ```text
-smart-route-ai/
-├── client/                      # React + Vite Frontend
+Route-Wise/
+├── client/                               # React 18 + Vite Frontend
 │   ├── src/
-│   │   ├── components/          # UI Components
-│   │   │   ├── ApiDocsModal.jsx     # Interactive cURL & schema modal
-│   │   │   ├── ApiKeyModal.jsx      # API key manager modal
-│   │   │   ├── MapView.jsx          # Leaflet map with colored polylines & pins
-│   │   │   ├── Navbar.jsx           # Top navigation & system health badge
-│   │   │   ├── RouteCard.jsx        # Route card with duration, delay & reasons
-│   │   │   ├── RouteCardList.jsx    # Ranked alternative card list
-│   │   │   ├── RouteSearchForm.jsx  # Origin/dest inputs, swap & presets
-│   │   │   ├── StatusBanner.jsx     # Stale data & demo mode alerts
-│   │   │   └── TrafficLegend.jsx    # Map color legend explanation
+│   │   ├── components/                   # UI Components
+│   │   │   ├── ApiDocsModal.jsx          # Interactive cURL & schema modal
+│   │   │   ├── ApiKeyModal.jsx           # API key manager modal
+│   │   │   ├── AuthorityDashboard.jsx    # F5 Municipal Authority Console modal
+│   │   │   ├── MapView.jsx               # Leaflet map, traffic flow tiles & interactive pins
+│   │   │   ├── Navbar.jsx                # Top nav, theme selector, health badge & triggers
+│   │   │   ├── ReportIncidentModal.jsx   # F4 accessible <dialog> crowd report modal
+│   │   │   ├── RouteCard.jsx             # Card with duration, delay, tags & Google Maps button
+│   │   │   ├── RouteCardList.jsx         # Ranked alternative card list
+│   │   │   ├── RouteSearchForm.jsx       # Origin/dest inputs, swap & presets
+│   │   │   ├── StatusBanner.jsx          # Stale data & demo mode alerts
+│   │   │   └── TrafficLegend.jsx         # Legend explaining tiers, flow & F4 indicators
 │   │   ├── services/
-│   │   │   └── api.js               # Frontend fetch wrapper with X-API-Key
+│   │   │   └── api.js                    # Fetch wrapper with API keys, reports & authority
 │   │   ├── utils/
-│   │   │   └── formatters.js        # Formatting for duration, km, delay
-│   │   ├── App.jsx                  # Root dashboard component & refresh timer
-│   │   ├── App.css                  # Custom styling
-│   │   └── main.jsx                 # Client entry point
-│   ├── index.html
-│   ├── package.json
-│   └── vite.config.js
-├── server/                      # Express Backend API
+│   │   │   ├── formatters.js             # Formatting for duration, km, delay & comparison
+│   │   │   ├── googleMapsHandoff.js      # Anchor extraction algorithm & handoff URL builder
+│   │   │   └── userKey.js                # Pseudonymous UUID in localStorage
+│   │   ├── App.jsx                       # Root dashboard component & state orchestrator
+│   │   ├── App.css                       # Obsidian glass design system & custom markers
+│   │   └── main.jsx                      # Client entry point
+│   ├── tests/                            # 24 Automated Frontend Unit Tests
+│   │   ├── formatters.test.js
+│   │   ├── googleMapsHandoff.test.js
+│   │   └── userKey.test.js
+│   └── package.json
+├── server/                               # Express 4 Backend API
 │   ├── src/
-│   │   ├── config/
-│   │   │   └── index.js             # Environment variable loader
+│   │   ├── config/                       # Environment configuration
 │   │   ├── controllers/
-│   │   │   ├── developerController.js # GET /api/developer/status
-│   │   │   ├── healthController.js    # GET /api/health
-│   │   │   └── routeController.js     # POST /recommend, POST /refresh
+│   │   │   ├── authorityController.js    # F5 Hotspots & incident resolution
+│   │   │   ├── developerController.js    # Developer status & key validation
+│   │   │   ├── healthController.js       # Health endpoint & uptime
+│   │   │   ├── incidentController.js     # F4 Reporting, deduplication & voting
+│   │   │   └── routeController.js        # Recommendation, ranking & refresh
 │   │   ├── middleware/
-│   │   │   ├── auth.js              # X-API-Key validation middleware
-│   │   │   ├── rateLimiter.js       # Sliding-window rate limiter
-│   │   │   └── validate.js          # Request body & coordinate validator
-│   │   ├── routes/
-│   │   │   ├── developerRoutes.js
-│   │   │   ├── healthRoutes.js
-│   │   │   └── routeRoutes.js
+│   │   │   ├── auth.js                   # X-API-Key SHA-256 validator
+│   │   │   ├── authorityAuth.js          # X-Authority-Role: admin validator
+│   │   │   ├── rateLimiter.js            # Sliding-window rate limiter
+│   │   │   └── validate.js               # Coordinate & body schema validation
+│   │   ├── models/
+│   │   │   └── db.js                     # Native Node 24 SQLite DatabaseSync layer
+│   │   ├── routes/                       # Express route routers
 │   │   ├── services/
-│   │   │   ├── geocodingService.js  # TomTom & offline city geocoding
-│   │   │   ├── keyManagerService.js # Cryptographic SHA-256 key manager
-│   │   │   ├── routeRankingService.js # Multi-criteria ranking engine
-│   │   │   ├── tomtomService.js     # TomTom Routing API client
-│   │   │   └── trafficSeverityService.js # Green/Yellow/Red classifier
-│   │   ├── utils/
-│   │   │   ├── logger.js            # Secret-safe console logger
-│   │   │   └── response.js          # Standardized JSON response helpers
-│   │   ├── app.js                   # Express app setup & middleware
-│   │   └── server.js                # Server listener
+│   │   │   ├── geocodingService.js       # Geocoding & coordinate dictionary
+│   │   │   ├── routeRankingService.js    # Adjusted ETA & switch threshold ranking
+│   │   │   ├── tomtomService.js          # TomTom Routing API client & proxy
+│   │   │   └── trafficSeverityService.js # Green/Yellow/Red traffic classifier
+│   │   ├── app.js                        # Express application setup & middleware
+│   │   └── server.js                     # Server entry point
 │   ├── data/
-│   │   └── keys.json                # SHA-256 hashes of authorized API keys
-│   ├── scripts/
-│   │   └── generate-dev-key.js      # CLI tool to generate new development keys
-│   ├── tests/                       # Automated test suite (22 tests)
+│   │   ├── routewise.db                  # Native SQLite database (WAL mode)
+│   │   └── keys.json                     # SHA-256 hashes of authorized API keys
+│   ├── tests/                            # 75 Automated Backend Tests
 │   │   ├── auth.test.js
+│   │   ├── authority.test.js
+│   │   ├── db.test.js
 │   │   ├── health.test.js
+│   │   ├── incidentController.test.js
 │   │   ├── routeController.test.js
 │   │   ├── routeRanking.test.js
-│   │   └── trafficSeverity.test.js
-│   ├── .env.example
+│   │   ├── trafficSeverity.test.js
+│   │   └── trafficTiles.test.js
 │   └── package.json
-├── package.json                 # Monorepo root scripts
-├── .gitignore
-└── README.md
+└── package.json                          # Monorepo orchestrator
 ```
 
 ---
 
-## 4. Getting Started & Installation
+## 4. API Specification & Endpoints
+
+### 4.1 Route Recommendations & Navigation
+* `POST /api/routes/recommend` — Takes `source` and `destination` (names or `{ lat, lng }`), returns candidate driving routes ranked by Adjusted ETA with switch threshold reasons.
+* `POST /api/routes/refresh` — Fast re-evaluation of traffic delays on existing corridors without re-geocoding.
+* `GET /api/routes/locations/search?q=query` — Search autocomplete for Tamil Nadu and national cities.
+
+### 4.2 F4 Community Incident Reporting
+* `POST /api/reports` — Commuters submit structured reports (`congestion`, `roadblock`, `roadwork`, `procession`, `signal_failure`, `waterlogging`). Duplicates within 100m are automatically merged as confirmation votes.
+* `GET /api/reports/nearby?lat=...&lng=...&radiusM=...` — Returns active verified and unverified reports within specified radius.
+* `POST /api/reports/:id/votes` — Commuters vote `yes` (Still Active) or `no` (Cleared). Two confirmations auto-verify the report.
+
+### 4.3 F5 Municipal Authority Console
+* `GET /api/authority/hotspots?windowDays=7` (Requires `X-Authority-Role: admin`) — Returns active verified incidents ranked by delay impact and age, enriched with 7-day spatial recurrence counts within 150m.
+* `POST /api/authority/reports/:id/resolve` (Requires `X-Authority-Role: admin`) — Marks incident as `Resolved` and records `resolvedAt` and `resolvedBy` audit fields.
+
+### 4.4 Traffic Flow & Telemetry
+* `GET /api/traffic/tiles/:z/:x/:y.png` — Proxies live TomTom raster traffic flow tiles to keep API keys secure.
+* `GET /api/traffic/status` — Checks live TomTom connectivity and key validity.
+* `GET /api/health` — System status, uptime, and database health.
+
+---
+
+## 5. Automated Testing (99 Tests Passing at 100%)
+
+The test suite runs with Node.js native test runner:
+
+```bash
+# Run server test suite (75 tests):
+cd server && npm test
+
+# Run client test suite (24 tests):
+cd client && npm test
+
+# Build client production bundle:
+cd client && npm run build
+```
+
+### Test Coverage Highlights:
+- **Server (75 tests):**
+  - `routeRanking.test.js` (15 tests): Adjusted ETA ranking, no delay double-counting, switch threshold `max(180s, 0.10 * mainRouteEta)`, edge cases.
+  - `db.test.js` (15 tests): SQLite schema, constraints, duplicate merging, voting lifecycle, 7-day recurrence.
+  - `authority.test.js` (6 tests): Auth enforcement, 401s, hotspot ranking, resolution audit fields.
+  - `incidentController.test.js` (10 tests): Submission validation, duplicate merging, 2-vote verification, voting deduplication.
+  - `routeController.test.js` (14 tests): Geocoding, coordinates, recommendation, refresh, autocomplete.
+  - `trafficSeverity.test.js` (5 tests): Severity categorization.
+  - `trafficTiles.test.js` (3 tests): Proxy status and image endpoints.
+  - `auth.test.js` & `health.test.js` (7 tests): API key authentication and health status.
+- **Client (24 tests):**
+  - `googleMapsHandoff.test.js` (8 tests): Decision anchor extraction ($\le 3$ waypoints), URL generation, 2048 char safety limit, two-wheeler mode.
+  - `formatters.test.js` (14 tests): Duration, distance, delay formatters, cross-route comparison text.
+  - `userKey.test.js` (2 tests): Anonymous user key generation and `localStorage` persistence.
+
+---
+
+## 6. How to Run Locally
 
 ### Prerequisites
-* Node.js v18.0.0 or higher
-* npm v9.0.0 or higher
+- Node.js 20 or 24 LTS
 
-### Quick Start (Under 2 Minutes)
-
-1. **Install dependencies:**
-   ```bash
-   # From root directory:
-   npm install --prefix server
-   npm install --prefix client
-   ```
-
-2. **Start the backend server (Port 5000):**
-   ```bash
-   npm run dev:server
-   # or: node server/src/server.js
-   ```
-
-3. **In a second terminal, start the frontend (Port 5173):**
-   ```bash
-   npm run dev:client
-   # or: npm run dev --prefix client
-   ```
-
-4. **Open your browser:**
-   Visit **`http://localhost:5173`**. The dashboard will load with an initial route between **Tiruchirappalli** and **Coimbatore** already evaluated and drawn on the map!
-
----
-
-## 5. Environment Variables & TomTom API Key Configuration
-
-The backend reads configuration from `server/.env`. A pre-configured `.env` is already created with safe development defaults.
-
-```env
-PORT=5000
-NODE_ENV=development
-CLIENT_ORIGIN=http://localhost:5173
-
-# TomTom Routing & Traffic API Credentials
-# Get your free API key at https://developer.tomtom.com
-TOMTOM_API_KEY=your_actual_tomtom_key_here
-TOMTOM_BASE_URL=https://api.tomtom.com
-TIMEOUT_MS=8000
-
-# Rate Limiting
-RATE_LIMIT_WINDOW_MS=60000
-RATE_LIMIT_MAX=60
-
-# Configurable Ranking Weights
-WEIGHT_TIME=0.5
-WEIGHT_DELAY=0.3
-WEIGHT_DISTANCE=0.2
-```
-
-### How to configure a TomTom API Key locally:
-1. Register for a free developer account at [developer.tomtom.com](https://developer.tomtom.com).
-2. Go to **Dashboard > Keys** and copy your API Key.
-3. Paste it into `server/.env`:
-   ```env
-   TOMTOM_API_KEY=your_copied_key
-   ```
-4. Restart the backend server.
-5. **Note on fallback:** If `TOMTOM_API_KEY` is not provided or runs out of credits, the server runs in a transparent demo mode (`dataSource: "tomtom-fallback-demo"`) with high-fidelity curved road polylines and traffic delays so development is never blocked.
-
----
-
-## 6. API Key Authentication & Security
-
-All route-related endpoints require the `X-API-Key` HTTP header.
-
-### Security Principles:
-* **Hashed Storage:** The server **never** stores plaintext keys. Only cryptographic SHA-256 hashes (`crypto.createHash('sha256')`) are persisted in `server/data/keys.json`.
-* **Pre-bootstrapped Key:** For instant testing, a default local hackathon key is automatically provisioned:
-  * **Key:** `sra_dev_hackathon_demo_key_2026`
-  * Pre-loaded in both the client and server.
-* **Issuing New Keys:** You can generate new keys via the CLI anytime:
-  ```bash
-  npm run generate:key --prefix server "Judge Demo Key"
-  ```
-  The script displays the key **once** in your terminal and saves its SHA-256 hash.
-
----
-
-## 7. API Reference
-
-### 1. `GET /api/health`
-Public health probe returning service status and provider connectivity.
-
+### Setup & Launch
 ```bash
-curl -X GET http://localhost:5000/api/health
+# 1. Install dependencies
+cd server && npm install
+cd ../client && npm install
+
+# 2. Start backend server (Port 5000)
+cd server && npm run dev
+
+# 3. Start frontend dev server (Port 5173)
+cd client && npm run dev
 ```
 
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "status": "healthy",
-  "service": "SmartRoute AI Backend API",
-  "version": "1.0.0",
-  "uptimeSeconds": 142,
-  "provider": {
-    "name": "TomTom Routing & Traffic",
-    "connected": true,
-    "hasRealKey": false
-  },
-  "timestamp": "2026-10-23T07:15:30.000Z"
-}
-```
-
----
-
-### 2. `POST /api/routes/recommend`
-Calculates, ranks, and returns route recommendations.
-
-```bash
-curl -X POST http://localhost:5000/api/routes/recommend \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: sra_dev_hackathon_demo_key_2026" \
-  -d '{
-    "source": "Tiruchirappalli",
-    "destination": "Coimbatore"
-  }'
-```
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "source": {
-    "name": "Tiruchirappalli, Tamil Nadu, India",
-    "coordinates": { "lat": 10.7905, "lng": 78.7047 }
-  },
-  "destination": {
-    "name": "Coimbatore, Tamil Nadu, India",
-    "coordinates": { "lat": 11.0168, "lng": 76.9558 }
-  },
-  "recommendedRouteId": "route-1",
-  "totalAlternativesFound": 3,
-  "dataSource": "tomtom-fallback-demo",
-  "updatedAt": "2026-10-23T07:15:32.110Z",
-  "routes": [
-    {
-      "id": "route-1",
-      "rank": 1,
-      "isRecommended": true,
-      "rankingScore": 88,
-      "distanceMeters": 262500,
-      "estimatedDurationSeconds": 15810,
-      "trafficDelaySeconds": 360,
-      "trafficSeverity": "low",
-      "trafficColor": "#22c55e",
-      "trafficLabel": "Low Traffic",
-      "recommendationReasons": [
-        "Fastest estimated travel time among all candidate routes",
-        "Lowest traffic congestion delay (+6 mins)"
-      ],
-      "geometry": [
-        [10.7905, 78.7047],
-        [10.8251, 78.6412]
-      ]
-    }
-  ]
-}
-```
-
----
-
-### 3. `POST /api/routes/refresh`
-Polls for updated traffic delays on active endpoints without resetting map viewport.
-
-```bash
-curl -X POST http://localhost:5000/api/routes/refresh \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: sra_dev_hackathon_demo_key_2026" \
-  -d '{
-    "source": "Salem",
-    "destination": "Bangalore"
-  }'
-```
-
----
-
-### 4. `GET /api/developer/status`
-Returns safe configuration status for authorized API keys.
-
-```bash
-curl -X GET http://localhost:5000/api/developer/status \
-  -H "X-API-Key: sra_dev_hackathon_demo_key_2026"
-```
-
----
-
-## 8. Route Ranking Engine & Traffic Severity
-
-### Multi-Criteria Ranking Algorithm
-Unlike basic mapping services that merely sort by raw distance, SmartRoute AI computes a normalized multi-criteria cost:
-
-$$\text{Composite Cost} = (w_{\text{time}} \cdot \bar{T}) + (w_{\text{delay}} \cdot \bar{D}) + (w_{\text{dist}} \cdot \bar{L})$$
-
-* $\bar{T}$: Normalized estimated travel time ($[0, 1]$)
-* $\bar{D}$: Normalized traffic delay ($[0, 1]$)
-* $\bar{L}$: Normalized route distance ($[0, 1]$)
-* Default weights: $w_{\text{time}} = 0.5$, $w_{\text{delay}} = 0.3$, $w_{\text{dist}} = 0.2$ (adjustable via UI or request payload)
-
-The candidate with the **lowest composite cost** is assigned **Rank #1 (Recommended Route)**.
-
-### Traffic Severity Thresholds
-Congestion severity is computed independently from route rank:
-
-$$\text{Delay Ratio} = \frac{\text{trafficDelaySeconds}}{\text{freeFlowTravelTimeSeconds}}$$
-
-* **Low Traffic (Green `#22c55e`):** $\text{Delay Ratio} < 0.15$
-* **Moderate Traffic (Yellow `#eab308`):** $0.15 \le \text{Delay Ratio} < 0.40$
-* **Heavy Congestion (Red `#ef4444`):** $\text{Delay Ratio} \ge 0.40$
-
-> **Important Concept:** Recommendation status is decoupled from traffic severity. The recommended route may still experience moderate traffic if all alternative paths are significantly worse.
-
----
-
-## 9. Automated Testing
-
-The backend includes a comprehensive automated test suite covering all 15 required business logic & API validation scenarios:
-
-```bash
-# Run tests:
-npm test --prefix server
-# or from root:
-npm run test:server
-```
-
-### Test Suite Results:
-* **Total Tests:** 22 passing tests
-* **Total Suites:** 5 test files
-* **Execution Time:** ~0.75 seconds
-* **Coverage:**
-  * `health.test.js`: Health status, metadata & uptime
-  * `auth.test.js`: Missing header, invalid key, valid key
-  * `trafficSeverity.test.js`: Green/Yellow/Red thresholds, zero delay, negative inputs
-  * `routeRanking.test.js`: Different travel times, high congestion penalty, missing traffic data, missing geometry, single route edge case, determinism
-  * `routeController.test.js`: Missing source, missing destination, empty body, identical locations, end-to-end recommendation, refresh endpoint, direct coordinate objects
-
----
-
-## 10. Hackathon Demo Walkthrough (3-Minute Script)
-
-1. **Dashboard Overview:** Open `http://localhost:5173`. Show the clean transportation developer UI with the route between Tiruchirappalli and Coimbatore already rendered on the map.
-2. **Interactive Map & Polylines:** Click the **Rank #1 (Green)** and **Rank #2 (Yellow/Red)** route cards; point out how the map polyline highlights and tooltips reflect actual travel time differences.
-3. **Traffic Legend:** Explain how Rank #1 recommendation status is separated from segment congestion severity.
-4. **Custom Ranking Weights:** Click **Configurable Ranking Weights** in the search form, adjust the **Traffic Delay Penalty** slider to maximum, and click **Find & Rank Best Route** to show how routing prioritization dynamically shifts.
-5. **Periodic Auto-Refresh:** Toggle the **Auto-refresh (60s)** switch; point out the live countdown timer and the timestamp update when manual refresh is triggered.
-6. **API Key Security & Docs:** Click **API Keys** in the navbar to demonstrate SHA-256 key testing. Click **API Docs** to copy a live cURL request and execute it in terminal to show third-party integration capability.
-
----
-
-## 11. Known Limitations & Technical Scope
-
-* **No User Accounts / Persistent Database:** Designed as an API-first hackathon prototype; uses `localStorage` for demo key caching and file-based SHA-256 hashes for API key authorization.
-* **Deterministic Baseline Engine:** The ranking engine is a transparent, deterministic multi-criteria weighted cost model. It does not falsely claim unverified machine learning predictions.
-* **Max Alternatives:** Returns up to 3 driving alternatives, which aligns with TomTom Routing API limits.
-* **No Turn-by-Turn GPS Navigation:** Built for route recommendation and developer API integration, not turn-by-turn mobile navigation.
+Open `http://localhost:5173` in your browser.

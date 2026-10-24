@@ -13,11 +13,61 @@ import {
 import { searchLocationsApi } from '../services/api';
 
 const PRESETS = [
-  { label: 'Trichy → Coimbatore', src: 'Tiruchirappalli', dst: 'Coimbatore' },
-  { label: 'Gandhipuram → RS Puram', src: 'Gandhipuram, Coimbatore', dst: 'RS Puram, Coimbatore' },
-  { label: 'Indiranagar → Whitefield', src: 'Indiranagar, Bengaluru', dst: 'Whitefield, Bengaluru' },
-  { label: 'Salem → Bangalore', src: 'Salem', dst: 'Bangalore' },
-  { label: 'Chennai → Madurai', src: 'Chennai', dst: 'Madurai' }
+  {
+    label: 'Central Bus Stand ⇄ Chathiram',
+    shortLabel: 'CBS ⇄ Chathiram',
+    src: 'Central Bus Stand, Trichy',
+    dst: 'Chathiram Bus Stand, Trichy',
+    tag: 'Arterial'
+  },
+  {
+    label: 'Chathiram ⇄ Srirangam (Kaveri Bridge)',
+    shortLabel: 'Chathiram ⇄ Srirangam',
+    src: 'Chathiram Bus Stand, Trichy',
+    dst: 'Srirangam Rajagopuram, Trichy',
+    tag: 'Bottleneck'
+  },
+  {
+    label: 'HPO Junction ⇄ Thillai Nagar',
+    shortLabel: 'HPO ⇄ Thillai Nagar',
+    src: 'Head Post Office Junction, Trichy',
+    dst: 'Thillai Nagar, Trichy',
+    tag: 'Artery'
+  },
+  {
+    label: 'Palakkarai ⇄ Gandhi Market',
+    shortLabel: 'Palakkarai ⇄ Gandhi Mkt',
+    src: 'Palakkarai Junction, Trichy',
+    dst: 'Gandhi Market, Trichy',
+    tag: 'Hotspot'
+  },
+  {
+    label: 'TVS Tollgate ⇄ Airport Junction',
+    shortLabel: 'TVS ⇄ Airport',
+    src: 'TVS Tollgate Junction, Trichy',
+    dst: 'Tiruchirappalli International Airport',
+    tag: 'Merge'
+  },
+  {
+    label: 'Central Bus Stand ⇄ NIT Trichy',
+    shortLabel: 'CBS ⇄ NIT Trichy',
+    src: 'Central Bus Stand, Trichy',
+    dst: 'NIT Trichy (Thuvakudi)',
+    tag: 'Highway'
+  }
+];
+
+const TRICHY_JUNCTIONS = [
+  { name: 'Central Bus Stand, Trichy', short: 'Central Bus Stand' },
+  { name: 'Chathiram Bus Stand, Trichy', short: 'Chathiram' },
+  { name: 'Thillai Nagar, Trichy', short: 'Thillai Nagar' },
+  { name: 'Head Post Office Junction, Trichy', short: 'HPO Junction' },
+  { name: 'Palakkarai Junction, Trichy', short: 'Palakkarai' },
+  { name: 'Gandhi Market, Trichy', short: 'Gandhi Market' },
+  { name: 'Srirangam Rajagopuram, Trichy', short: 'Srirangam' },
+  { name: 'TVS Tollgate Junction, Trichy', short: 'TVS Tollgate' },
+  { name: 'Tiruchirappalli International Airport', short: 'Trichy Airport' },
+  { name: 'NIT Trichy (Thuvakudi)', short: 'NIT Trichy' }
 ];
 
 export default function RouteSearchForm({
@@ -38,6 +88,23 @@ export default function RouteSearchForm({
 }) {
   const [showWeights, setShowWeights] = useState(false);
 
+  // Local input values to decouple keystrokes from parent App re-renders (120 FPS typing)
+  const [inputSource, setInputSource] = useState(source || '');
+  const [inputDest, setInputDest] = useState(destination || '');
+
+  // Keep local inputs in sync when parent props change (e.g. from preset or map-click)
+  useEffect(() => {
+    if (!userTypingSourceRef.current) {
+      setInputSource(source || '');
+    }
+  }, [source]);
+
+  useEffect(() => {
+    if (!userTypingDestRef.current) {
+      setInputDest(destination || '');
+    }
+  }, [destination]);
+
   // Autocomplete states for Origin
   const [sourceSuggestions, setSourceSuggestions] = useState([]);
   const [sourceLoading, setSourceLoading] = useState(false);
@@ -56,6 +123,8 @@ export default function RouteSearchForm({
 
   const sourceContainerRef = useRef(null);
   const destContainerRef = useRef(null);
+  const userTypingSourceRef = useRef(false);
+  const userTypingDestRef = useRef(false);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -71,9 +140,9 @@ export default function RouteSearchForm({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Debounced search for Origin
+  // Debounced search for Origin — triggers only when user actively types
   useEffect(() => {
-    if (!source || source.trim().length < 2) {
+    if (!userTypingSourceRef.current || !inputSource || inputSource.trim().length < 2) {
       setSourceSuggestions([]);
       setSourceLoading(false);
       return;
@@ -81,7 +150,7 @@ export default function RouteSearchForm({
 
     const timer = setTimeout(async () => {
       setSourceLoading(true);
-      const results = await searchLocationsApi(source);
+      const results = await searchLocationsApi(inputSource);
       setSourceSuggestions(results);
       setSourceLoading(false);
       setSourceSelectedIndex(-1);
@@ -91,11 +160,11 @@ export default function RouteSearchForm({
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [source]);
+  }, [inputSource]);
 
-  // Debounced search for Destination
+  // Debounced search for Destination — triggers only when user actively types
   useEffect(() => {
-    if (!destination || destination.trim().length < 2) {
+    if (!userTypingDestRef.current || !inputDest || inputDest.trim().length < 2) {
       setDestSuggestions([]);
       setDestLoading(false);
       return;
@@ -103,7 +172,7 @@ export default function RouteSearchForm({
 
     const timer = setTimeout(async () => {
       setDestLoading(true);
-      const results = await searchLocationsApi(destination);
+      const results = await searchLocationsApi(inputDest);
       setDestSuggestions(results);
       setDestLoading(false);
       setDestSelectedIndex(-1);
@@ -113,7 +182,7 @@ export default function RouteSearchForm({
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [destination]);
+  }, [inputDest]);
 
   // Geolocation trigger
   const handleLocateMe = () => {
@@ -131,7 +200,10 @@ export default function RouteSearchForm({
         setLocating(false);
         const lat = Number(pos.coords.latitude.toFixed(5));
         const lng = Number(pos.coords.longitude.toFixed(5));
-        setSource(`${lat}, ${lng}`);
+        const val = `${lat}, ${lng}`;
+        userTypingSourceRef.current = false;
+        setInputSource(val);
+        setSource(val);
         setGeoNotice(`GPS locked: ${lat}, ${lng}`);
         setTimeout(() => setGeoNotice(null), 2500);
       },
@@ -145,14 +217,22 @@ export default function RouteSearchForm({
   };
 
   const handleSwap = () => {
-    const temp = source;
-    setSource(destination);
+    userTypingSourceRef.current = false;
+    userTypingDestRef.current = false;
+    const temp = inputSource;
+    setInputSource(inputDest);
+    setInputDest(temp);
+    setSource(inputDest);
     setDestination(temp);
     setShowSourceDropdown(false);
     setShowDestDropdown(false);
   };
 
   const handlePreset = (preset) => {
+    userTypingSourceRef.current = false;
+    userTypingDestRef.current = false;
+    setInputSource(preset.src);
+    setInputDest(preset.dst);
     setSource(preset.src);
     setDestination(preset.dst);
     setShowSourceDropdown(false);
@@ -160,12 +240,35 @@ export default function RouteSearchForm({
   };
 
   const handleSelectSource = (loc) => {
+    userTypingSourceRef.current = false;
+    setInputSource(loc.name);
     setSource(loc.name);
+    setSourceSuggestions([]);
     setShowSourceDropdown(false);
   };
 
   const handleSelectDest = (loc) => {
+    userTypingDestRef.current = false;
+    setInputDest(loc.name);
     setDestination(loc.name);
+    setDestSuggestions([]);
+    setShowDestDropdown(false);
+  };
+
+  const handleQuickJunction = (juncName) => {
+    userTypingSourceRef.current = false;
+    userTypingDestRef.current = false;
+    if (!inputSource.trim()) {
+      setInputSource(juncName);
+      setSource(juncName);
+    } else if (!inputDest.trim()) {
+      setInputDest(juncName);
+      setDestination(juncName);
+    } else {
+      setInputDest(juncName);
+      setDestination(juncName);
+    }
+    setShowSourceDropdown(false);
     setShowDestDropdown(false);
   };
 
@@ -209,10 +312,16 @@ export default function RouteSearchForm({
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
+    userTypingSourceRef.current = false;
+    userTypingDestRef.current = false;
     setShowSourceDropdown(false);
     setShowDestDropdown(false);
-    if (source.trim() && destination.trim()) {
-      onSubmit();
+    const s = inputSource.trim();
+    const d = inputDest.trim();
+    setSource(s);
+    setDestination(d);
+    if (s && d) {
+      onSubmit(s, d);
     }
   };
 
@@ -252,6 +361,9 @@ export default function RouteSearchForm({
                 A
               </span>
               <span className="text-light">Origin Location</span>
+              {sourceLoading && (
+                <span className="spinner-border spinner-border-sm text-info ms-1" style={{ width: 11, height: 11 }} />
+              )}
             </label>
 
             <button
@@ -259,7 +371,7 @@ export default function RouteSearchForm({
               className="btn btn-link btn-sm p-0 text-decoration-none d-flex align-items-center gap-1"
               style={{ fontSize: '0.68rem', color: '#38bdf8' }}
               onClick={handleLocateMe}
-              disabled={locating || loading}
+              disabled={locating}
               title="Use current GPS position as Origin"
             >
               <LocateFixed size={12} className={locating ? 'spinner-border spinner-border-sm' : ''} />
@@ -277,10 +389,11 @@ export default function RouteSearchForm({
             <input
               type="text"
               className="form-control glass-input"
-              placeholder="e.g. Gandhipuram, Whitefield, or 10.79, 78.70"
-              value={source}
+              placeholder="Search origin (e.g. Central Bus Stand, HPO Junction)..."
+              value={inputSource}
               onChange={(e) => {
-                setSource(e.target.value);
+                userTypingSourceRef.current = true;
+                setInputSource(e.target.value);
                 setShowSourceDropdown(true);
               }}
               onFocus={() => {
@@ -291,19 +404,21 @@ export default function RouteSearchForm({
               aria-autocomplete="list"
               aria-expanded={showSourceDropdown}
               required
-              disabled={loading}
               autoComplete="off"
             />
-            {source && (
+            {inputSource && (
               <button
                 type="button"
-                className="btn glass-btn-secondary"
+                className="btn glass-input-clear-btn"
                 onClick={() => {
+                  userTypingSourceRef.current = false;
+                  setInputSource('');
                   setSource('');
                   setSourceSuggestions([]);
                   setShowSourceDropdown(false);
                 }}
                 title="Clear origin"
+                aria-label="Clear origin"
               >
                 &times;
               </button>
@@ -317,16 +432,34 @@ export default function RouteSearchForm({
                 <div
                   key={idx}
                   className={`autocomplete-item ${idx === sourceSelectedIndex ? 'is-selected' : ''}`}
-                  onClick={() => handleSelectSource(loc)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelectSource(loc);
+                  }}
                   role="option"
                   aria-selected={idx === sourceSelectedIndex}
                 >
-                  <div className="autocomplete-title d-flex align-items-center gap-1.5">
-                    <MapPin size={13} color="#22c55e" />
-                    <span>{loc.name}</span>
+                  <div className="autocomplete-title">
+                    <div className="d-flex align-items-center gap-1.5 text-truncate">
+                      <MapPin size={13} color="#22c55e" className="flex-shrink-0" />
+                      <span className="text-truncate">{loc.name}</span>
+                    </div>
+                    {loc.isJunction && (
+                      <span
+                        className="badge font-monospace flex-shrink-0"
+                        style={{
+                          fontSize: '0.62rem',
+                          background: 'rgba(239, 68, 68, 0.2)',
+                          color: '#f87171',
+                          border: '1px solid rgba(239, 68, 68, 0.4)'
+                        }}
+                      >
+                        ⚡ Junction
+                      </span>
+                    )}
                   </div>
                   <div className="autocomplete-sub">
-                    <span>{loc.municipality || 'Location'}{loc.country ? `, ${loc.country}` : ''}</span>
+                    <span>{loc.municipality || 'Tiruchirappalli'}{loc.country ? `, ${loc.country}` : ''}</span>
                     <span className="autocomplete-coord">{loc.lat.toFixed(4)}, {loc.lng.toFixed(4)}</span>
                   </div>
                 </div>
@@ -342,10 +475,9 @@ export default function RouteSearchForm({
             className="btn glass-swap-btn d-inline-flex align-items-center gap-1.5"
             onClick={handleSwap}
             title="Swap origin and destination"
-            disabled={loading}
           >
             <ArrowUpDown size={13} color="#38bdf8" />
-            <span>Swap</span>
+            <span>Swap Direction</span>
           </button>
         </div>
 
@@ -370,10 +502,11 @@ export default function RouteSearchForm({
             <input
               type="text"
               className="form-control glass-input"
-              placeholder="e.g. RS Puram, Coimbatore Airport, or 11.01, 76.95"
-              value={destination}
+              placeholder="Search destination (e.g. Chathiram, Thillai Nagar)..."
+              value={inputDest}
               onChange={(e) => {
-                setDestination(e.target.value);
+                userTypingDestRef.current = true;
+                setInputDest(e.target.value);
                 setShowDestDropdown(true);
               }}
               onFocus={() => {
@@ -384,19 +517,21 @@ export default function RouteSearchForm({
               aria-autocomplete="list"
               aria-expanded={showDestDropdown}
               required
-              disabled={loading}
               autoComplete="off"
             />
-            {destination && (
+            {inputDest && (
               <button
                 type="button"
-                className="btn glass-btn-secondary"
+                className="btn glass-input-clear-btn"
                 onClick={() => {
+                  userTypingDestRef.current = false;
+                  setInputDest('');
                   setDestination('');
                   setDestSuggestions([]);
                   setShowDestDropdown(false);
                 }}
                 title="Clear destination"
+                aria-label="Clear destination"
               >
                 &times;
               </button>
@@ -410,16 +545,34 @@ export default function RouteSearchForm({
                 <div
                   key={idx}
                   className={`autocomplete-item ${idx === destSelectedIndex ? 'is-selected' : ''}`}
-                  onClick={() => handleSelectDest(loc)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelectDest(loc);
+                  }}
                   role="option"
                   aria-selected={idx === destSelectedIndex}
                 >
-                  <div className="autocomplete-title d-flex align-items-center gap-1.5">
-                    <MapPin size={13} color="#ef4444" />
-                    <span>{loc.name}</span>
+                  <div className="autocomplete-title">
+                    <div className="d-flex align-items-center gap-1.5 text-truncate">
+                      <MapPin size={13} color="#ef4444" className="flex-shrink-0" />
+                      <span className="text-truncate">{loc.name}</span>
+                    </div>
+                    {loc.isJunction && (
+                      <span
+                        className="badge font-monospace flex-shrink-0"
+                        style={{
+                          fontSize: '0.62rem',
+                          background: 'rgba(239, 68, 68, 0.2)',
+                          color: '#f87171',
+                          border: '1px solid rgba(239, 68, 68, 0.4)'
+                        }}
+                      >
+                        ⚡ Junction
+                      </span>
+                    )}
                   </div>
                   <div className="autocomplete-sub">
-                    <span>{loc.municipality || 'Location'}{loc.country ? `, ${loc.country}` : ''}</span>
+                    <span>{loc.municipality || 'Tiruchirappalli'}{loc.country ? `, ${loc.country}` : ''}</span>
                     <span className="autocomplete-coord">{loc.lat.toFixed(4)}, {loc.lng.toFixed(4)}</span>
                   </div>
                 </div>
@@ -434,32 +587,92 @@ export default function RouteSearchForm({
           <span>Click anywhere on the map to set Origin (A) or Destination (B).</span>
         </div>
 
-        {/* Quick Presets */}
-        <div className="mb-3">
-          <span className="d-block mb-1 fw-semibold" style={{ fontSize: '0.74rem', color: '#cbd5e1' }}>
-            Quick Route Presets:
-          </span>
-          <div className="d-flex flex-wrap gap-1.5">
+        {/* Quick Presets & Junction Points (Compact) */}
+        <div className="mb-2.5">
+          <div className="d-flex align-items-center justify-content-between mb-1">
+            <span className="fw-semibold d-flex align-items-center gap-1" style={{ fontSize: '0.70rem', color: '#94a3b8' }}>
+              <Navigation size={11} color="#38bdf8" />
+              <span>Trichy Corridor Presets:</span>
+            </span>
+          </div>
+
+          <div className="d-flex flex-wrap gap-1 mb-2">
             {PRESETS.map((p, idx) => (
               <button
                 key={idx}
                 type="button"
                 className="glass-preset-pill"
                 onClick={() => handlePreset(p)}
-                disabled={loading}
+                title={`${p.label} (${p.tag})`}
               >
-                {p.label}
+                {p.shortLabel || p.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="d-flex align-items-center justify-content-between mb-1">
+            <span className="fw-semibold d-flex align-items-center gap-1" style={{ fontSize: '0.68rem', color: '#64748b' }}>
+              <Sparkles size={10} color="#38bdf8" />
+              <span>Junction Hotspots (Click to set):</span>
+            </span>
+          </div>
+
+          <div className="d-flex flex-wrap gap-1">
+            {TRICHY_JUNCTIONS.map((j, idx) => (
+              <button
+                key={idx}
+                type="button"
+                className="junction-chip"
+                onClick={() => handleQuickJunction(j.name)}
+                title={`Click to set ${j.name}`}
+              >
+                + {j.short}
               </button>
             ))}
           </div>
         </div>
+
+        {/* Real-time Guidance Banner */}
+        {(!inputSource.trim() || !inputDest.trim()) ? (
+          <div
+            className="mb-2 p-2 rounded-2 d-flex align-items-center gap-2"
+            style={{
+              background: 'rgba(56, 189, 248, 0.08)',
+              border: '1px dashed rgba(56, 189, 248, 0.25)',
+              fontSize: '0.72rem',
+              color: '#94a3b8'
+            }}
+          >
+            <Sparkles size={13} color="#38bdf8" className="flex-shrink-0" />
+            <span>
+              {!inputSource.trim() && !inputDest.trim()
+                ? 'Select a Trichy preset above or type Origin (A) & Destination (B) to rank routes.'
+                : !inputSource.trim()
+                ? 'Enter or select an Origin (A) location to continue.'
+                : 'Enter or select a Destination (B) location to rank live alternatives.'}
+            </span>
+          </div>
+        ) : (
+          <div
+            className="mb-2 p-1.5 rounded-2 d-flex align-items-center gap-2"
+            style={{
+              background: 'rgba(34, 197, 94, 0.1)',
+              border: '1px solid rgba(34, 197, 94, 0.25)',
+              fontSize: '0.72rem',
+              color: '#86efac'
+            }}
+          >
+            <CheckCircle2 size={13} color="#22c55e" className="flex-shrink-0" />
+            <span>Ready to evaluate live multi-criteria routes with TomTom & AI forecasting.</span>
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div className="d-grid gap-2 mb-3">
           <button
             type="submit"
             className="btn glass-btn-primary d-flex align-items-center justify-content-center gap-2 py-2"
-            disabled={loading || !source.trim() || !destination.trim()}
+            disabled={loading || !inputSource.trim() || !inputDest.trim()}
           >
             {loading ? (
               <>

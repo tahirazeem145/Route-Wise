@@ -100,6 +100,35 @@ export default function TrafficLegend() {
           </div>
         </div>
       </div>
+
+      {/* Row C: Community Crowd Reports (F4) */}
+      <div className="mt-2">
+        <label className="form-label small text-secondary mb-1 fw-semibold d-flex align-items-center gap-1">
+          <span
+            className="rounded-circle d-inline-flex align-items-center justify-content-center text-white"
+            style={{ width: 18, height: 18, fontSize: '0.65rem', background: '#f43f5e', fontWeight: 'bold' }}
+          >
+            C
+          </span>
+          <span className="text-light">Community Incident Indicators (F4)</span>
+        </label>
+        <div className="card-field-box d-flex flex-wrap align-items-center gap-2">
+          <div className="d-flex align-items-center gap-1.5 px-2 py-1 rounded" style={{ background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)' }}>
+            <span style={{ fontSize: '0.80rem' }}>✓</span>
+            <span className="fw-semibold" style={{ fontSize: '0.70rem', color: '#86efac' }}>Verified (Solid + Pulse)</span>
+          </div>
+
+          <div className="d-flex align-items-center gap-1.5 px-2 py-1 rounded" style={{ background: 'rgba(245, 158, 11, 0.15)', border: '1px dashed rgba(245, 158, 11, 0.5)' }}>
+            <span style={{ fontSize: '0.80rem' }}>?</span>
+            <span style={{ fontSize: '0.70rem', color: '#fde047' }}>Unverified (Dashed Outline)</span>
+          </div>
+
+          <div className="d-flex align-items-center gap-1.5 px-2 py-1 rounded" style={{ background: 'rgba(168, 85, 247, 0.15)', border: '1px solid rgba(168, 85, 247, 0.4)' }}>
+            <span style={{ fontSize: '0.75rem' }}>🔁</span>
+            <span style={{ fontSize: '0.70rem', color: '#d8b4fe' }}>7-Day Recurring</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

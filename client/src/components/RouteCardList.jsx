@@ -9,9 +9,11 @@ import {
   ShieldCheck,
   Zap,
   Layers,
-  ArrowRight
+  ArrowRight,
+  ExternalLink
 } from 'lucide-react';
 import { formatTime, formatDuration, formatDistance, formatDelay, getRouteComparison } from '../utils/formatters';
+import { buildGoogleMapsHandoff } from '../utils/googleMapsHandoff.js';
 
 function TrendSparkline({ timeline }) {
   if (!timeline || timeline.length < 2) return null;
@@ -76,7 +78,10 @@ export default function RouteCardList({
   selectedRouteId,
   onSelectRoute,
   updatedAt,
-  loading
+  loading,
+  origin,
+  destination,
+  travelMode = 'driving'
 }) {
 
   if (loading) {
@@ -94,15 +99,40 @@ export default function RouteCardList({
   if (!routes || routes.length === 0) {
     return (
       <div className="glass-panel p-4 text-center mb-3">
-        <div className="text-secondary mb-2">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <polygon points="3 11 22 2 13 21 11 13 3 11"/>
-          </svg>
+        <div className="d-flex justify-content-center mb-2">
+          <div
+            className="d-flex align-items-center justify-content-center rounded-circle"
+            style={{
+              width: 48,
+              height: 48,
+              background: 'rgba(56, 189, 248, 0.12)',
+              border: '1px solid rgba(56, 189, 248, 0.35)',
+              boxShadow: '0 0 20px rgba(56, 189, 248, 0.2)'
+            }}
+          >
+            <Navigation size={22} color="#38bdf8" />
+          </div>
         </div>
-        <h6 className="fw-semibold text-white mb-1">No Routes Evaluated Yet</h6>
-        <p className="text-secondary small mb-0">
-          Enter origin and destination locations above and click <strong>Find & Rank Best Route</strong> to view alternatives.
+        <div className="d-inline-flex align-items-center gap-1.5 badge font-monospace mb-2" style={{ fontSize: '0.68rem', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+          <Sparkles size={11} color="#38bdf8" />
+          <span>Tiruchirappalli Junction Intelligence</span>
+        </div>
+        <h6 className="fw-bold text-white mb-1.5">Ready to Plan & Rank Routes</h6>
+        <p className="text-secondary small mb-3" style={{ maxWidth: 360, margin: '0 auto' }}>
+          Select a Trichy collision preset or type Origin and Destination locations to evaluate live multi-criteria corridors with TomTom telemetry.
         </p>
+
+        <div className="d-flex flex-wrap justify-content-center gap-2 pt-2" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <span className="badge font-monospace" style={{ fontSize: '0.64rem', background: 'rgba(255, 255, 255, 0.05)', color: '#94a3b8' }}>
+            ⚡ Junction Bottlenecks
+          </span>
+          <span className="badge font-monospace" style={{ fontSize: '0.64rem', background: 'rgba(34, 197, 94, 0.1)', color: '#86efac' }}>
+            🧠 Pareto Rank Model
+          </span>
+          <span className="badge font-monospace" style={{ fontSize: '0.64rem', background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8' }}>
+            📈 +45m Diurnal Forecast
+          </span>
+        </div>
       </div>
     );
   }
@@ -338,6 +368,45 @@ export default function RouteCardList({
                 </strong>
               </div>
             </div>
+
+            {/* Section 6: Google Maps Directions Handoff Action */}
+            {(() => {
+              const handoff = buildGoogleMapsHandoff(route, {
+                origin,
+                destination,
+                allRoutes: routes,
+                travelMode
+              });
+
+              return (
+                <div className="mt-2.5 pt-2 border-top border-white border-opacity-10">
+                  <a
+                    href={handoff.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="btn btn-sm w-100 d-flex align-items-center justify-content-center gap-1.5 py-1.5"
+                    style={{
+                      background: isRecommended ? 'rgba(34, 197, 94, 0.16)' : 'rgba(56, 189, 248, 0.12)',
+                      border: isRecommended ? '1px solid rgba(34, 197, 94, 0.40)' : '1px solid rgba(56, 189, 248, 0.35)',
+                      color: isRecommended ? '#86efac' : '#38bdf8',
+                      fontSize: '0.74rem',
+                      fontWeight: 600,
+                      borderRadius: '8px',
+                      textDecoration: 'none'
+                    }}
+                    title={`Open ${route.name || `Route #${route.rank}`} in Google Maps with corridor anchors`}
+                  >
+                    <ExternalLink size={13} />
+                    <span>Open {isRecommended ? 'Recommended' : `Route #${route.rank}`} in Google Maps ↗</span>
+                  </a>
+
+                  <div className="text-secondary mt-1 text-center" style={{ fontSize: '0.62rem', lineHeight: '1.25' }}>
+                    Best-effort corridor handoff ({handoff.waypoints.length} decision anchors). Google Maps recalculates roads between anchors.
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         );
       })}

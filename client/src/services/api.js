@@ -106,4 +106,52 @@ export async function searchLocationsApi(query) {
   }
 }
 
+export async function submitIncidentReport(reportData) {
+  return request('/api/reports', {
+    method: 'POST',
+    body: JSON.stringify(reportData)
+  });
+}
+
+export async function fetchNearbyIncidents(params = {}) {
+  const query = new URLSearchParams();
+  const lat = params.lat ?? params.latitude;
+  const lng = params.lng ?? params.longitude;
+  if (lat != null) query.set('lat', lat);
+  if (lng != null) query.set('lng', lng);
+  if (params.radiusM != null) query.set('radiusM', params.radiusM);
+  if (params.status) query.set('status', params.status);
+
+  const res = await request(`/api/reports/nearby?${query.toString()}`, {
+    method: 'GET'
+  });
+  return res?.reports || [];
+}
+
+export async function voteOnIncident(reportId, voteData) {
+  return request(`/api/reports/${encodeURIComponent(reportId)}/votes`, {
+    method: 'POST',
+    body: JSON.stringify(voteData)
+  });
+}
+
+export async function fetchAuthorityHotspots(windowDays = 7, authorityKey = 'admin') {
+  return request(`/api/authority/hotspots?windowDays=${encodeURIComponent(windowDays)}`, {
+    method: 'GET',
+    headers: {
+      'X-Authority-Role': authorityKey
+    }
+  });
+}
+
+export async function resolveAuthorityIncident(reportId, resolvedBy = 'Traffic Authority Officer', authorityKey = 'admin') {
+  return request(`/api/authority/reports/${encodeURIComponent(reportId)}/resolve`, {
+    method: 'POST',
+    headers: {
+      'X-Authority-Role': authorityKey
+    },
+    body: JSON.stringify({ resolvedBy })
+  });
+}
+
 

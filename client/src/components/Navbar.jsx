@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigation, FileText, KeyRound, Activity } from 'lucide-react';
+import { Navigation, FileText, KeyRound, Activity, AlertTriangle, ShieldAlert } from 'lucide-react';
 
 const THEMES = [
   { id: 'indigo', label: 'Indigo/Violet (Default)', color: '#818cf8' },
@@ -12,6 +12,8 @@ const THEMES = [
 export default function Navbar({
   onOpenDocs,
   onOpenApiKey,
+  onOpenReportModal,
+  onOpenAuthorityDashboard,
   serverHealthy,
   apiKeyPrefix,
   currentTheme = 'indigo',
@@ -104,6 +106,36 @@ export default function Navbar({
               {serverHealthy ? 'API Online' : 'Connecting...'}
             </span>
           </div>
+
+          <button
+            type="button"
+            className="btn glass-btn-secondary btn-sm d-flex align-items-center gap-1.5 px-3 py-1"
+            style={{
+              border: '1px solid rgba(239, 68, 68, 0.45)',
+              background: 'rgba(239, 68, 68, 0.14)',
+              color: '#fca5a5'
+            }}
+            onClick={onOpenReportModal}
+            title="Report a traffic incident (F4)"
+          >
+            <AlertTriangle size={14} color="#f87171" />
+            <span className="d-none d-sm-inline">Report Incident</span>
+          </button>
+
+          <button
+            type="button"
+            className="btn glass-btn-secondary btn-sm d-flex align-items-center gap-1.5 px-3 py-1"
+            style={{
+              border: '1px solid rgba(168, 85, 247, 0.45)',
+              background: 'rgba(168, 85, 247, 0.14)',
+              color: '#d8b4fe'
+            }}
+            onClick={onOpenAuthorityDashboard}
+            title="Municipal Traffic Authority Console (F5)"
+          >
+            <ShieldAlert size={14} color="#c084fc" />
+            <span className="d-none d-sm-inline">Authority</span>
+          </button>
 
           <button
             type="button"

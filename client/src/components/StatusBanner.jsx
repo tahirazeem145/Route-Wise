@@ -1,15 +1,37 @@
 import React, { useState } from 'react';
 import { AlertCircle, AlertTriangle, Info, Zap } from 'lucide-react';
 
-export default function StatusBanner({ error, isStale, dataSource, onDismissError, onOpenTomTomKey }) {
+export default function StatusBanner({
+  error,
+  isStale,
+  dataSource,
+  serverHealthy = true,
+  onDismissError,
+  onOpenTomTomKey,
+  onOpenDocs
+}) {
   const [dismissDemo, setDismissDemo] = useState(false);
+  const [dismissUnhealthy, setDismissUnhealthy] = useState(false);
 
-  if (!error && !isStale && (dataSource !== 'tomtom-fallback-demo' || dismissDemo)) {
+  const showServerDown = !serverHealthy && !dismissUnhealthy;
+
+  if (!error && !isStale && !showServerDown && (dataSource !== 'tomtom-fallback-demo' || dismissDemo)) {
     return null;
   }
 
   return (
     <div className="mb-3">
+      {showServerDown && (
+        <div className="glass-alert-warning p-3 mb-2 small d-flex align-items-center justify-content-between gap-2 shadow-sm" role="alert">
+          <div className="d-flex align-items-center gap-2">
+            <AlertTriangle size={18} color="#f59e0b" className="flex-shrink-0" />
+            <div>
+              <strong>Backend Disconnected:</strong> Cannot reach SmartRoute AI backend at <code>http://localhost:5000</code>. Please verify the server is running.
+            </div>
+          </div>
+          <button type="button" className="glass-close-btn" onClick={() => setDismissUnhealthy(true)} aria-label="Dismiss">✕</button>
+        </div>
+      )}
       {error && (
         <div className="glass-alert-danger p-3 mb-2 d-flex align-items-center justify-content-between gap-3 shadow-sm" role="alert">
           <div className="d-flex align-items-center gap-2">

@@ -8,6 +8,27 @@ const TRANSPARENT_PNG = Buffer.from(
   'base64'
 );
 
+// In-memory tile cache to accelerate map rendering and prevent tile request floods
+const tileCache = new Map();
+const TILE_CACHE_TTL_MS = 60 * 1000;
+
+function getCachedTile(key) {
+  const item = tileCache.get(key);
+  if (item && Date.now() - item.time < TILE_CACHE_TTL_MS) {
+    return item.buffer;
+  }
+  if (item) tileCache.delete(key);
+  return null;
+}
+
+function setCachedTile(key, buffer) {
+  if (tileCache.size > 800) {
+    const oldestKey = tileCache.keys().next().value;
+    tileCache.delete(oldestKey);
+  }
+  tileCache.set(key, { buffer, time: Date.now() });
+}
+
 /**
  * Proxy TomTom Traffic Flow and Incident tiles.
  * Secures the provider API key entirely on the server.
@@ -20,6 +41,14 @@ async function getTrafficFlowTile(req, res) {
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Cache-Control', 'public, max-age=120');
     return res.end(TRANSPARENT_PNG);
+  }
+
+  const cacheKey = `flow:${z}:${x}:${y}`;
+  const cached = getCachedTile(cacheKey);
+  if (cached) {
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    return res.end(cached);
   }
 
   // TomTom Traffic Flow relative tile URL
@@ -36,17 +65,23 @@ async function getTrafficFlowTile(req, res) {
 
     if (providerRes.ok) {
       const buffer = await providerRes.arrayBuffer();
+      const nodeBuffer = Buffer.from(buffer);
+      setCachedTile(cacheKey, nodeBuffer);
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Cache-Control', 'public, max-age=60'); // Cache for 60s
-      return res.end(Buffer.from(buffer));
+      return res.end(nodeBuffer);
     }
 
-    // If TomTom returns 404, 403, or rate limit: return transparent tile
+    // If TomTom returns 404, 403, or rate limit: return transparent tile and cache it
+    setCachedTile(cacheKey, TRANSPARENT_PNG);
     res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=60');
     return res.end(TRANSPARENT_PNG);
   } catch (err) {
     logger.warn(`Traffic tile proxy error for ${z}/${x}/${y}: ${err.message}`);
+    setCachedTile(cacheKey, TRANSPARENT_PNG);
     res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=60');
     return res.end(TRANSPARENT_PNG);
   } finally {
     clearTimeout(timeoutId);
@@ -61,6 +96,14 @@ async function getTrafficIncidentsTile(req, res) {
     return res.end(TRANSPARENT_PNG);
   }
 
+  const cacheKey = `incidents:${z}:${x}:${y}`;
+  const cached = getCachedTile(cacheKey);
+  if (cached) {
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    return res.end(cached);
+  }
+
   const tomtomTileUrl = `${config.tomtom.baseUrl}/traffic/map/4/tile/incidents/s0/${z}/${x}/${y}.png?key=${config.tomtom.apiKey}`;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 6000);
@@ -73,15 +116,21 @@ async function getTrafficIncidentsTile(req, res) {
 
     if (providerRes.ok) {
       const buffer = await providerRes.arrayBuffer();
+      const nodeBuffer = Buffer.from(buffer);
+      setCachedTile(cacheKey, nodeBuffer);
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Cache-Control', 'public, max-age=60');
-      return res.end(Buffer.from(buffer));
+      return res.end(nodeBuffer);
     }
 
+    setCachedTile(cacheKey, TRANSPARENT_PNG);
     res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=60');
     return res.end(TRANSPARENT_PNG);
   } catch (err) {
+    setCachedTile(cacheKey, TRANSPARENT_PNG);
     res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=60');
     return res.end(TRANSPARENT_PNG);
   } finally {
     clearTimeout(timeoutId);

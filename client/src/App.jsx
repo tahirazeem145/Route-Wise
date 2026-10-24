@@ -8,13 +8,15 @@ import MapView from './components/MapView';
 import TrafficLegend from './components/TrafficLegend';
 import ApiKeyModal from './components/ApiKeyModal';
 import ApiDocsModal from './components/ApiDocsModal';
+import ReportIncidentModal from './components/ReportIncidentModal';
+import AuthorityDashboard from './components/AuthorityDashboard';
 import { Map } from 'lucide-react';
 import { recommendRoutes, refreshRoutes, getHealth, getStoredApiKey } from './services/api';
 
 
 export default function App() {
-  const [source, setSource] = useState('Tiruchirappalli');
-  const [destination, setDestination] = useState('Coimbatore');
+  const [source, setSource] = useState('');
+  const [destination, setDestination] = useState('');
   const [weights, setWeights] = useState({ weightTime: 0.5, weightDelay: 0.3, weightDistance: 0.2 });
 
   const [routes, setRoutes] = useState([]);
@@ -33,6 +35,10 @@ export default function App() {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [showDocsModal, setShowDocsModal] = useState(false);
   const [showTomTomModal, setShowTomTomModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showAuthorityModal, setShowAuthorityModal] = useState(false);
+  const [reportCoords, setReportCoords] = useState({ lat: 11.0168, lng: 76.9660 });
+  const [incidentRefreshTrigger, setIncidentRefreshTrigger] = useState(0);
   const [apiKeyPrefix, setApiKeyPrefix] = useState('');
 
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
@@ -73,8 +79,6 @@ export default function App() {
       })
       .catch(() => setServerHealthy(false));
 
-    // Automatically load initial route for instant visual demo
-    handleFindRoutes('Tiruchirappalli', 'Coimbatore');
   }, []);
 
   // Primary route search handler
@@ -160,11 +164,28 @@ export default function App() {
     handleRefresh();
   };
 
+  const handleOpenReportModal = (coords) => {
+    if (coords && typeof coords.lat === 'number' && typeof coords.lng === 'number') {
+      setReportCoords(coords);
+    } else if (sourceMeta?.coordinates) {
+      setReportCoords(sourceMeta.coordinates);
+    } else {
+      setReportCoords({ lat: 11.0168, lng: 76.9660 });
+    }
+    setShowReportModal(true);
+  };
+
+  const handleIncidentReported = () => {
+    setIncidentRefreshTrigger((prev) => prev + 1);
+  };
+
   return (
     <div className="d-flex flex-column min-vh-100 text-light">
       <Navbar
         onOpenDocs={() => setShowDocsModal(true)}
         onOpenApiKey={() => setShowApiKeyModal(true)}
+        onOpenReportModal={() => handleOpenReportModal()}
+        onOpenAuthorityDashboard={() => setShowAuthorityModal(true)}
         serverHealthy={serverHealthy}
         apiKeyPrefix={apiKeyPrefix}
         currentTheme={theme}
@@ -173,11 +194,13 @@ export default function App() {
 
       <div className="container-fluid py-3 px-3 flex-grow-1">
         <StatusBanner
+          serverHealthy={serverHealthy}
           error={error}
           isStale={isStale}
           dataSource={dataSource}
           onDismissError={() => setError(null)}
           onOpenTomTomKey={() => setShowTomTomModal(true)}
+          onOpenDocs={() => setShowDocsModal(true)}
         />
 
         <div className="row g-4">
@@ -206,6 +229,8 @@ export default function App() {
               onSelectRoute={(id) => setSelectedRouteId(id)}
               updatedAt={updatedAt}
               loading={loading}
+              origin={sourceMeta?.coordinates}
+              destination={destinationMeta?.coordinates}
             />
           </div>
 
@@ -225,7 +250,6 @@ export default function App() {
                   <Map size={15} color="#38bdf8" />
                 </span>
                 <span>Live Interactive Route & Heatmap</span>
-
               </h6>
               <span className="badge font-monospace" style={{ fontSize: '0.68rem', background: 'rgba(255, 255, 255, 0.08)', color: '#94a3b8' }}>
                 TomTom Telemetry
@@ -245,8 +269,9 @@ export default function App() {
                   if (type === 'source') setSource(val);
                   if (type === 'destination') setDestination(val);
                 }}
+                onOpenReportModal={handleOpenReportModal}
+                incidentRefreshTrigger={incidentRefreshTrigger}
               />
-
             </div>
 
             <TrafficLegend />
@@ -263,6 +288,19 @@ export default function App() {
       <ApiDocsModal
         show={showDocsModal}
         onClose={() => setShowDocsModal(false)}
+      />
+
+      <ReportIncidentModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        defaultCoords={reportCoords}
+        onIncidentReported={handleIncidentReported}
+      />
+
+      <AuthorityDashboard
+        isOpen={showAuthorityModal}
+        onClose={() => setShowAuthorityModal(false)}
+        onIncidentResolved={() => setIncidentRefreshTrigger(prev => prev + 1)}
       />
     </div>
   );
