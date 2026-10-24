@@ -1,5 +1,75 @@
 import React from 'react';
+import {
+  Clock,
+  Navigation,
+  Sparkles,
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  ShieldCheck,
+  Zap,
+  Layers,
+  ArrowRight
+} from 'lucide-react';
 import { formatTime, formatDuration, formatDistance, formatDelay, getRouteComparison } from '../utils/formatters';
+
+function TrendSparkline({ timeline }) {
+  if (!timeline || timeline.length < 2) return null;
+  const delays = timeline.map((t) => Math.max(0, t.delayMinutes || 0));
+  const maxDelay = Math.max(5, ...delays);
+  const minDelay = 0;
+  const range = maxDelay - minDelay || 1;
+  const w = 260;
+  const h = 42;
+  const padX = 8;
+  const padY = 6;
+  const innerW = w - padX * 2;
+  const innerH = h - padY * 2;
+
+  const pts = timeline.map((t, idx) => {
+    const x = padX + (idx / (timeline.length - 1)) * innerW;
+    const y = h - padY - ((Math.max(0, t.delayMinutes || 0) - minDelay) / range) * innerH;
+    return { x, y, ...t };
+  });
+
+  const pathD = pts.reduce((acc, pt, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`, '');
+  const fillD = `${pathD} L ${pts[pts.length - 1].x.toFixed(1)} ${h - padY} L ${pts[0].x.toFixed(1)} ${h - padY} Z`;
+
+  const isRising = delays[delays.length - 1] > delays[0];
+  const strokeColor = isRising ? '#f87171' : '#4ade80';
+
+  return (
+    <div className="mb-2 p-2 rounded-2" style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="d-flex justify-content-between align-items-center mb-1" style={{ fontSize: '0.66rem' }}>
+        <span className="text-secondary fw-semibold">Congestion Curve (+45m Timeline)</span>
+        <span style={{ color: strokeColor, fontWeight: 'bold' }}>
+          {isRising ? '▲ Congestion Rising' : '▼ Delay Clearing'}
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 38, overflow: 'visible' }}>
+        <defs>
+          <linearGradient id="sparklineGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={strokeColor} stopOpacity="0.30" />
+            <stop offset="100%" stopColor={strokeColor} stopOpacity="0.0" />
+          </linearGradient>
+        </defs>
+        <path d={fillD} fill="url(#sparklineGrad)" />
+        <path d={pathD} fill="none" stroke={strokeColor} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        {pts.map((pt, i) => (
+          <circle
+            key={i}
+            cx={pt.x}
+            cy={pt.y}
+            r={pt.offsetMinutes === 15 ? 3.5 : 2.5}
+            fill={pt.offsetMinutes === 15 ? '#38bdf8' : strokeColor}
+            stroke="#0f172a"
+            strokeWidth="1.2"
+          />
+        ))}
+      </svg>
+    </div>
+  );
+}
 
 export default function RouteCardList({
   routes,
@@ -8,6 +78,7 @@ export default function RouteCardList({
   updatedAt,
   loading
 }) {
+
   if (loading) {
     return (
       <div className="glass-panel p-4 text-center mb-3">
@@ -345,7 +416,7 @@ export default function RouteCardList({
                         {formatDistance(r.distanceMeters)}
                       </td>
                       <td>
-                        {r.trafficDelaySeconds > 0 ? (
+                        {Math.round((r.trafficDelaySeconds || 0) / 60) > 0 ? (
                           <span style={{ color: '#f87171' }}>+{Math.round(r.trafficDelaySeconds / 60)}m</span>
                         ) : (
                           <span style={{ color: '#86efac' }}>0m</span>
@@ -444,8 +515,12 @@ export default function RouteCardList({
             </div>
           </div>
 
+          {/* Interactive Predictive Delay Trajectory Sparkline */}
+          <TrendSparkline timeline={forecast.timeline} />
+
           {/* Section B: Multi-Horizon Forecast Timeline */}
           <div className="mb-3">
+
             <label className="form-label small text-secondary mb-1.5 fw-semibold d-flex align-items-center gap-1">
               <span
                 className="rounded-circle d-inline-flex align-items-center justify-content-center text-white"

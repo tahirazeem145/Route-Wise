@@ -1,4 +1,5 @@
 import React from 'react';
+import { Layers } from 'lucide-react';
 
 export default function TrafficLegend() {
   return (
@@ -15,14 +16,11 @@ export default function TrafficLegend() {
               border: '1px solid rgba(56, 189, 248, 0.4)'
             }}
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-              <polyline points="2 17 12 22 22 17"/>
-              <polyline points="2 12 12 17 22 12"/>
-            </svg>
+            <Layers size={14} color="#38bdf8" />
           </span>
           <span>Traffic Telemetry & Route Tiers</span>
         </h6>
+
         <span className="badge font-monospace" style={{ fontSize: '0.68rem', background: 'rgba(255, 255, 255, 0.08)', color: '#94a3b8' }}>
           Live Legend
         </span>

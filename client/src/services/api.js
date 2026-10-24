@@ -90,3 +90,20 @@ export async function removeTomTomApiKey() {
   return res.json();
 }
 
+export async function searchLocationsApi(query) {
+  if (!query || typeof query !== 'string' || query.trim().length < 2) return [];
+  try {
+    const res = await fetch(`/api/routes/locations/search?q=${encodeURIComponent(query.trim())}`, {
+      headers: {
+        'X-API-Key': getStoredApiKey()
+      }
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.locations || data?.data?.locations || [];
+  } catch {
+    return [];
+  }
+}
+
+

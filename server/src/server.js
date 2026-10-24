@@ -16,12 +16,15 @@ const server = app.listen(config.port, () => {
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
-  logger.info('Shutting down server...');
+const shutdown = (signal) => {
+  logger.info(`Received ${signal}. Shutting down server...`);
   server.close(() => {
     logger.info('Server terminated cleanly.');
     process.exit(0);
   });
-});
+};
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 module.exports = server;

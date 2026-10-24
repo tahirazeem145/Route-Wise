@@ -36,11 +36,34 @@ describe('Route Controller Endpoints', () => {
     assert.strictEqual(res.body.error.code, 'INVALID_REQUEST_BODY');
   });
 
-  it('should return 400 when source and destination are identical', async () => {
+  it('should return 400 when source and destination are identical strings', async () => {
     const res = await request(app)
       .post('/api/routes/recommend')
       .set('X-API-Key', VALID_KEY)
       .send({ source: 'Chennai', destination: 'Chennai' });
+
+    assert.strictEqual(res.statusCode, 400);
+    assert.strictEqual(res.body.error.code, 'IDENTICAL_LOCATIONS');
+  });
+
+  it('should return 400 when direct coordinate objects are identical', async () => {
+    const res = await request(app)
+      .post('/api/routes/recommend')
+      .set('X-API-Key', VALID_KEY)
+      .send({
+        source: { lat: 10.7905, lng: 78.7047 },
+        destination: { lat: 10.7905, lng: 78.7047 }
+      });
+
+    assert.strictEqual(res.statusCode, 400);
+    assert.strictEqual(res.body.error.code, 'IDENTICAL_LOCATIONS');
+  });
+
+  it('should return 400 when source and destination aliases resolve to the same location', async () => {
+    const res = await request(app)
+      .post('/api/routes/recommend')
+      .set('X-API-Key', VALID_KEY)
+      .send({ source: 'Trichy', destination: 'Tiruchirappalli' });
 
     assert.strictEqual(res.statusCode, 400);
     assert.strictEqual(res.body.error.code, 'IDENTICAL_LOCATIONS');
@@ -101,4 +124,60 @@ describe('Route Controller Endpoints', () => {
     assert.strictEqual(res.body.isRefreshed, true);
     assert.ok(res.body.routes.length > 0);
   });
+
+  it('should return matching locations for autocomplete search query via GET /api/routes/locations/search', async () => {
+    const res = await request(app)
+      .get('/api/routes/locations/search?q=Coimbatore')
+      .set('X-API-Key', VALID_KEY);
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(Array.isArray(res.body.locations));
+    assert.ok(res.body.locations.length > 0);
+    assert.ok(res.body.locations[0].lat);
+    assert.ok(res.body.locations[0].lng);
+  });
+
+  it('should return empty locations array for query shorter than 2 chars', async () => {
+    const res = await request(app)
+      .get('/api/routes/locations/search?q=a')
+      .set('X-API-Key', VALID_KEY);
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.deepStrictEqual(res.body.locations, []);
+  });
+
+  it('should accept location names longer than 100 characters without validation error', async () => {
+    const longAddress = 'Whitefield Lake, Hoodi Main Road, Industrial Estate Dodda Nekkundi, White Field, Bengaluru 560048, Karnataka, India';
+    assert.ok(longAddress.length > 100);
+
+    const res = await request(app)
+      .post('/api/routes/recommend')
+      .set('X-API-Key', VALID_KEY)
+      .send({
+        source: 'Indiranagar, Bengaluru',
+        destination: longAddress
+      });
+
+    assert.notStrictEqual(res.statusCode, 400);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(res.body.routes.length > 0);
+  });
+
+  it('should accept formatted coordinate strings with parentheses and labels', async () => {
+    const res = await request(app)
+      .post('/api/routes/recommend')
+      .set('X-API-Key', VALID_KEY)
+      .send({
+        source: 'Coordinates (10.7905, 78.7047)',
+        destination: '(11.0168, 76.9558)'
+      });
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.ok(res.body.routes.length > 0);
+  });
 });
+
+

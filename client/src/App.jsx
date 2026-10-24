@@ -8,7 +8,9 @@ import MapView from './components/MapView';
 import TrafficLegend from './components/TrafficLegend';
 import ApiKeyModal from './components/ApiKeyModal';
 import ApiDocsModal from './components/ApiDocsModal';
+import { Map } from 'lucide-react';
 import { recommendRoutes, refreshRoutes, getHealth, getStoredApiKey } from './services/api';
+
 
 export default function App() {
   const [source, setSource] = useState('Tiruchirappalli');
@@ -30,6 +32,7 @@ export default function App() {
   const [serverHealthy, setServerHealthy] = useState(false);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [showDocsModal, setShowDocsModal] = useState(false);
+  const [showTomTomModal, setShowTomTomModal] = useState(false);
   const [apiKeyPrefix, setApiKeyPrefix] = useState('');
 
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
@@ -128,22 +131,29 @@ export default function App() {
     }
   };
 
-  // Auto-refresh 60-second timer
+  // Auto-refresh 60-second countdown timer
   useEffect(() => {
     if (!autoRefreshEnabled || routes.length === 0) return;
 
     const timer = setInterval(() => {
       setRefreshCountdown((prev) => {
         if (prev <= 1) {
-          handleRefresh();
-          return 60;
+          return 0; // Signal trigger
         }
         return prev - 1;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [autoRefreshEnabled, routes, source, destination, weights]);
+  }, [autoRefreshEnabled, routes.length]);
+
+  // Trigger refresh when countdown reaches 0 outside of state updater
+  useEffect(() => {
+    if (autoRefreshEnabled && refreshCountdown === 0 && routes.length > 0) {
+      handleRefresh();
+      setRefreshCountdown(60);
+    }
+  }, [refreshCountdown, autoRefreshEnabled, routes.length]);
 
   const handleKeyUpdated = (newKey) => {
     setApiKeyPrefix(newKey ? newKey.slice(0, 8) + '...' : '');
@@ -167,6 +177,7 @@ export default function App() {
           isStale={isStale}
           dataSource={dataSource}
           onDismissError={() => setError(null)}
+          onOpenTomTomKey={() => setShowTomTomModal(true)}
         />
 
         <div className="row g-4">
@@ -211,13 +222,10 @@ export default function App() {
                     border: '1px solid rgba(56, 189, 248, 0.4)'
                   }}
                 >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
-                    <line x1="8" y1="2" x2="8" y2="18"/>
-                    <line x1="16" y1="6" x2="16" y2="22"/>
-                  </svg>
+                  <Map size={15} color="#38bdf8" />
                 </span>
                 <span>Live Interactive Route & Heatmap</span>
+
               </h6>
               <span className="badge font-monospace" style={{ fontSize: '0.68rem', background: 'rgba(255, 255, 255, 0.08)', color: '#94a3b8' }}>
                 TomTom Telemetry
@@ -231,7 +239,14 @@ export default function App() {
                 routes={routes}
                 selectedRouteId={selectedRouteId}
                 onSelectRoute={(id) => setSelectedRouteId(id)}
+                showTomTomModal={showTomTomModal}
+                setShowTomTomModal={setShowTomTomModal}
+                onSetLocation={(type, val) => {
+                  if (type === 'source') setSource(val);
+                  if (type === 'destination') setDestination(val);
+                }}
               />
+
             </div>
 
             <TrafficLegend />

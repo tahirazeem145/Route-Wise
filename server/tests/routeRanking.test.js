@@ -73,4 +73,27 @@ describe('Route Ranking Engine Service', () => {
     const run2 = rankRoutes(candidateRoutes);
     assert.deepStrictEqual(run1, run2);
   });
+
+  it('should preserve route name in multiple route alternatives', () => {
+    const candidateRoutes = [
+      { id: 'r1', name: 'Primary Express Highway', distanceMeters: 40000, estimatedDurationSeconds: 2400, trafficDelaySeconds: 100 },
+      { id: 'r2', name: 'City Arterial Corridor', distanceMeters: 38000, estimatedDurationSeconds: 3200, trafficDelaySeconds: 800 }
+    ];
+
+    const result = rankRoutes(candidateRoutes);
+    assert.strictEqual(result.routes[0].name, 'Primary Express Highway');
+    assert.strictEqual(result.routes[1].name, 'City Arterial Corridor');
+  });
+
+  it('should handle custom weights passed as string values safely without producing NaN', () => {
+    const candidateRoutes = [
+      { id: 'r1', distanceMeters: 40000, estimatedDurationSeconds: 2400, trafficDelaySeconds: 100 },
+      { id: 'r2', distanceMeters: 38000, estimatedDurationSeconds: 3200, trafficDelaySeconds: 800 }
+    ];
+
+    const result = rankRoutes(candidateRoutes, { weightTime: '0.6', weightDelay: '0.3', weightDistance: '0.1' });
+    assert.ok(!isNaN(result.routes[0].rankingScore));
+    assert.ok(!isNaN(result.routes[1].rankingScore));
+    assert.strictEqual(result.routes[0].rankingScore > 0, true);
+  });
 });

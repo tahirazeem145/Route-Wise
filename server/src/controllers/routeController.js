@@ -1,4 +1,4 @@
-const { geocodeLocation } = require('../services/geocodingService');
+const { geocodeLocation, searchLocations } = require('../services/geocodingService');
 const { fetchTomTomRoutes } = require('../services/tomtomService');
 const { rankRoutes } = require('../services/routeRankingService');
 const { predictRouteTraffic } = require('../services/predictiveTrafficService');
@@ -22,6 +22,12 @@ async function recommendRoutes(req, res) {
       resolvedDestination = await geocodeLocation(destination);
     } catch (err) {
       return errorResponse(res, 'GEOCODING_FAILED_DESTINATION', err.message, 400);
+    }
+
+    const latDiff = Math.abs(resolvedSource.lat - resolvedDestination.lat);
+    const lngDiff = Math.abs(resolvedSource.lng - resolvedDestination.lng);
+    if ((resolvedSource.lat === resolvedDestination.lat && resolvedSource.lng === resolvedDestination.lng) || (latDiff < 0.0005 && lngDiff < 0.0005)) {
+      return errorResponse(res, 'IDENTICAL_LOCATIONS', 'Source and destination locations resolve to the same geographic coordinates.', 400);
     }
 
     // 2. Fetch routes from routing provider
@@ -89,6 +95,12 @@ async function refreshRoutes(req, res) {
       return errorResponse(res, 'GEOCODING_ERROR', err.message, 400);
     }
 
+    const latDiff = Math.abs(resolvedSource.lat - resolvedDestination.lat);
+    const lngDiff = Math.abs(resolvedSource.lng - resolvedDestination.lng);
+    if ((resolvedSource.lat === resolvedDestination.lat && resolvedSource.lng === resolvedDestination.lng) || (latDiff < 0.0005 && lngDiff < 0.0005)) {
+      return errorResponse(res, 'IDENTICAL_LOCATIONS', 'Source and destination locations resolve to the same geographic coordinates.', 400);
+    }
+
     const { routes: rawRoutes, dataSource } = await fetchTomTomRoutes(resolvedSource, resolvedDestination);
 
     if (!rawRoutes || rawRoutes.length === 0) {
@@ -126,7 +138,24 @@ async function refreshRoutes(req, res) {
   }
 }
 
+async function searchLocationsHandler(req, res) {
+  try {
+    const query = (req.query.q || req.query.query || '').trim();
+    if (!query || query.length < 2) {
+      return successResponse(res, { locations: [] });
+    }
+    const limit = Math.min(10, Math.max(1, parseInt(req.query.limit, 10) || 5));
+    const locations = await searchLocations(query, limit);
+    return successResponse(res, { locations });
+  } catch (error) {
+    logger.error('Error during location search:', error.message);
+    return errorResponse(res, 'LOCATION_SEARCH_ERROR', 'Unable to search locations at this time.', 500);
+  }
+}
+
 module.exports = {
   recommendRoutes,
-  refreshRoutes
+  refreshRoutes,
+  searchLocations: searchLocationsHandler
 };
+

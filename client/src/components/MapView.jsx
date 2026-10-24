@@ -7,7 +7,10 @@ export default function MapView({
   destination,
   routes,
   selectedRouteId,
-  onSelectRoute
+  onSelectRoute,
+  showTomTomModal,
+  setShowTomTomModal,
+  onSetLocation
 }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -16,6 +19,12 @@ export default function MapView({
   const trafficFlowLayerRef = useRef(null);
   const incidentsLayerRef = useRef(null);
   const lastFittedSignatureRef = useRef('');
+  const onSetLocationRef = useRef(onSetLocation);
+
+  useEffect(() => {
+    onSetLocationRef.current = onSetLocation;
+  }, [onSetLocation]);
+
 
   // Traffic Heatmap Layer State
   const [showTrafficFlow, setShowTrafficFlow] = useState(true);
@@ -25,8 +34,10 @@ export default function MapView({
   const [realKeyConfigured, setRealKeyConfigured] = useState(false);
   const [tileBuster, setTileBuster] = useState(Date.now());
 
-  // Modal State for configuring TomTom Live Key
-  const [showKeyModal, setShowKeyModal] = useState(false);
+  // Modal State for configuring TomTom Live Key (local fallback or parent controlled)
+  const [localShowKeyModal, setLocalShowKeyModal] = useState(false);
+  const showKeyModal = showTomTomModal !== undefined ? showTomTomModal : localShowKeyModal;
+  const setShowKeyModal = setShowTomTomModal || setLocalShowKeyModal;
   const [tomTomKeyInput, setTomTomKeyInput] = useState('');
   const [keyStatusMsg, setKeyStatusMsg] = useState(null);
   const [keyLoading, setKeyLoading] = useState(false);
@@ -83,6 +94,48 @@ export default function MapView({
       layersGroupRef.current = L.layerGroup().addTo(map);
       mapInstanceRef.current = map;
 
+      // Interactive map click listener: Pin location directly on map
+      map.on('click', (e) => {
+        const { lat, lng } = e.latlng;
+        const latStr = lat.toFixed(5);
+        const lngStr = lng.toFixed(5);
+
+        const container = document.createElement('div');
+        container.style.padding = '4px';
+        container.style.textAlign = 'center';
+        container.innerHTML = `
+          <div style="font-weight: 700; font-size: 0.82rem; margin-bottom: 2px; color: #f8fafc;">
+            📍 Picked Location
+          </div>
+          <div style="font-size: 0.72rem; color: #38bdf8; font-family: monospace; margin-bottom: 8px;">
+            ${latStr}, ${lngStr}
+          </div>
+          <div style="display: flex; gap: 6px; justify-content: center;">
+            <button id="set-origin-btn" style="background: #22c55e; border: none; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; cursor: pointer;">
+              Set Origin (A)
+            </button>
+            <button id="set-dest-btn" style="background: #ef4444; border: none; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; cursor: pointer;">
+              Set Dest (B)
+            </button>
+          </div>
+        `;
+
+        L.popup({ minWidth: 170 })
+          .setLatLng(e.latlng)
+          .setContent(container)
+          .openOn(map);
+
+        container.querySelector('#set-origin-btn')?.addEventListener('click', () => {
+          if (onSetLocationRef.current) onSetLocationRef.current('source', `${latStr}, ${lngStr}`);
+          map.closePopup();
+        });
+        container.querySelector('#set-dest-btn')?.addEventListener('click', () => {
+          if (onSetLocationRef.current) onSetLocationRef.current('destination', `${latStr}, ${lngStr}`);
+          map.closePopup();
+        });
+      });
+
+
       // Invalidate map size on any container resize to prevent grey tiles, but NOT during zoom animations
       if (typeof ResizeObserver !== 'undefined' && mapRef.current) {
         resizeObserver = new ResizeObserver(() => {
@@ -102,7 +155,6 @@ export default function MapView({
         }, 200);
       };
       window.addEventListener('resize', handleScrollOrResize);
-      window.addEventListener('scroll', handleScrollOrResize, { passive: true });
     }
 
     return () => {
@@ -112,11 +164,11 @@ export default function MapView({
       }
       if (handleScrollOrResize) {
         window.removeEventListener('resize', handleScrollOrResize);
-        window.removeEventListener('scroll', handleScrollOrResize);
       }
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
+        lastFittedSignatureRef.current = ''; // Reset so remounted map in StrictMode fits bounds properly
       }
     };
   }, []);
@@ -290,9 +342,14 @@ export default function MapView({
 
       const srcIcon = L.divIcon({
         className: 'custom-map-pin',
-        html: `<div style="background-color: #22c55e; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.45); font-size: 14px;">A</div>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
+        html: `
+          <div class="radar-beacon" style="width: 36px; height: 36px;">
+            <div class="radar-halo radar-halo-origin"></div>
+            <div style="background: linear-gradient(135deg, #22c55e, #16a34a); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; border: 2.5px solid white; box-shadow: 0 4px 14px rgba(34, 197, 94, 0.6); font-size: 14px; position: relative; z-index: 2;">A</div>
+          </div>
+        `,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
       });
 
       L.marker(srcLatLng, { icon: srcIcon, zIndexOffset: 500 })
@@ -300,22 +357,28 @@ export default function MapView({
         .addTo(group);
     }
 
-    // 2. Add Destination Marker (Red Pin B)
+    // 2. Add Destination Marker (Red Pin B with pulsing radar halo)
     if (destination && destination.coordinates) {
       const dstLatLng = [destination.coordinates.lat, destination.coordinates.lng];
       bounds.extend(dstLatLng);
 
       const dstIcon = L.divIcon({
         className: 'custom-map-pin',
-        html: `<div style="background-color: #ef4444; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.45); font-size: 14px;">B</div>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
+        html: `
+          <div class="radar-beacon" style="width: 36px; height: 36px;">
+            <div class="radar-halo radar-halo-dest"></div>
+            <div style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; border: 2.5px solid white; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.6); font-size: 14px; position: relative; z-index: 2;">B</div>
+          </div>
+        `,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
       });
 
       L.marker(dstLatLng, { icon: dstIcon, zIndexOffset: 500 })
         .bindPopup(`<strong>Destination (B)</strong><br/>${destination.name || 'End Point'}`)
         .addTo(group);
     }
+
 
     // 3. Render Route Polylines with Vivid Traffic Colors
     if (Array.isArray(routes) && routes.length > 0) {
@@ -391,10 +454,10 @@ export default function MapView({
         const badgePt = route.geometry[badgeIdx];
         if (badgePt) {
           let badgeText = '★ #1 Recommended';
-          if (route.rank === 2) {
-            badgeText = `#2 Moderate (+${Math.round(route.trafficDelaySeconds / 60)}m)`;
-          } else if (route.rank === 3) {
-            badgeText = `#3 Heavy (+${Math.round(route.trafficDelaySeconds / 60)}m)`;
+          if (route.rank > 1) {
+            const delayM = Math.round((route.trafficDelaySeconds || 0) / 60);
+            const label = route.trafficLabel || (route.trafficSeverity === 'heavy' ? 'Heavy' : (route.trafficSeverity === 'moderate' ? 'Moderate' : 'Normal'));
+            badgeText = `#${route.rank} ${label}${delayM > 0 ? ` (+${delayM}m)` : ''}`;
           }
 
           const badgeIcon = L.divIcon({
@@ -411,9 +474,34 @@ export default function MapView({
           badgeMarker.addTo(group);
         }
 
+        // Bottleneck radar beacon if significant congestion exists on selected route (> 4 min delay)
+        if (isSelected && (route.trafficDelaySeconds || 0) >= 240 && route.geometry.length > 8) {
+          const bottleneckIdx = Math.floor(route.geometry.length * 0.58);
+          const bottleneckPt = route.geometry[bottleneckIdx];
+          if (bottleneckPt) {
+            const bottleneckIcon = L.divIcon({
+              className: 'custom-bottleneck-pin',
+              html: `
+                <div class="radar-beacon" style="width: 32px; height: 32px;">
+                  <div class="radar-halo radar-halo-bottleneck"></div>
+                  <div style="background: #f59e0b; color: #000; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; border: 2px solid white; box-shadow: 0 0 12px rgba(245, 158, 11, 0.85); font-size: 11px; position: relative; z-index: 2;" title="Bottleneck Corridor">
+                    ⚠️
+                  </div>
+                </div>
+              `,
+              iconSize: [32, 32],
+              iconAnchor: [16, 16]
+            });
+            const bMarker = L.marker(bottleneckPt, { icon: bottleneckIcon, zIndexOffset: 450 });
+            bMarker.bindPopup(`<strong>Active Congestion Bottleneck</strong><br/>Estimated Delay: +${Math.round(route.trafficDelaySeconds / 60)} min<br/>Traffic Status: ${route.trafficLabel || 'Heavy Congestion'}`);
+            bMarker.addTo(group);
+          }
+        }
+
         route.geometry.forEach(pt => bounds.extend(pt));
       });
     }
+
 
     const routeSignature = `${source?.coordinates?.lat || ''},${source?.coordinates?.lng || ''}->${destination?.coordinates?.lat || ''},${destination?.coordinates?.lng || ''}->${routes?.length || 0}`;
     if (bounds.isValid() && lastFittedSignatureRef.current !== routeSignature) {

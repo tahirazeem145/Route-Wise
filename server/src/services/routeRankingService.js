@@ -18,8 +18,8 @@ function minMaxNormalize(values) {
   const min = Math.min(...values);
   const max = Math.max(...values);
   if (min === max) {
-    // If all alternatives have identical values, normalized cost is equal
-    return values.map(() => 0.5);
+    // If all alternatives have identical values, no relative penalty applies
+    return values.map(() => 0.0);
   }
   return values.map(v => (v - min) / (max - min));
 }
@@ -62,10 +62,16 @@ function rankRoutes(rawRoutes, customWeights = {}) {
     };
   }
 
-  // Resolve weights (fall back to server config)
-  const wTime = customWeights.weightTime ?? config.ranking.weightTime;
-  const wDelay = customWeights.weightDelay ?? config.ranking.weightDelay;
-  const wDist = customWeights.weightDistance ?? config.ranking.weightDistance;
+  // Resolve weights safely (convert string inputs to non-negative floats, fall back to config)
+  const parseWeight = (val, defaultVal) => {
+    if (val == null) return defaultVal;
+    const parsed = parseFloat(val);
+    return isNaN(parsed) || parsed < 0 ? defaultVal : parsed;
+  };
+
+  const wTime = parseWeight(customWeights.weightTime, config.ranking.weightTime);
+  const wDelay = parseWeight(customWeights.weightDelay, config.ranking.weightDelay);
+  const wDist = parseWeight(customWeights.weightDistance, config.ranking.weightDistance);
 
   // Normalize weights so they sum to 1.0
   const totalWeight = (wTime + wDelay + wDist) || 1.0;
@@ -283,6 +289,7 @@ function rankRoutes(rawRoutes, customWeights = {}) {
 
     return {
       id: route.id,
+      name: route.name || route.summary || `Route Alternative ${rankIdx + 1}`,
       rank: rankIdx + 1,
       isRecommended,
       rankingScore: route.rankingScore,
