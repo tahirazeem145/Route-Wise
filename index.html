@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cyber Knight - MRD & PRD Showcase | Route Wise</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #030305;
+      --card-bg: rgba(14, 14, 18, 0.95);
+      --border: rgba(255, 255, 255, 0.12);
+      --accent: #0284c7;
+      --accent-light: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.25);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2.5rem 1rem;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 20%, rgba(34, 197, 94, 0.07) 0%, transparent 45%),
+        radial-gradient(circle at 50% 85%, rgba(192, 132, 252, 0.06) 0%, transparent 50%);
+      background-attachment: fixed;
+    }
+    .container { max-width: 960px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 2rem; }
+    .badge-pill {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      color: var(--accent-light);
+      background: rgba(56, 189, 248, 0.14);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      padding: 0.35rem 0.9rem;
+      border-radius: 9999px;
+      margin-bottom: 0.85rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    h1 { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 0.5rem; }
+    p.subtitle { color: var(--text-muted); font-size: 1.05rem; max-width: 650px; margin: 0 auto; line-height: 1.5; }
+    .meta-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .meta-item span { display: block; font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .meta-item strong { font-size: 0.95rem; font-weight: 700; color: #fff; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.75rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.22s ease;
+      position: relative;
+    }
+    .card:hover {
+      border-color: var(--accent-light);
+      box-shadow: 0 12px 35px -5px rgba(0, 0, 0, 0.8), 0 0 25px var(--accent-glow);
+      transform: translateY(-2px);
+    }
+    .card-tag {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #4ade80;
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid rgba(34, 197, 94, 0.35);
+      padding: 0.25rem 0.65rem;
+      border-radius: 6px;
+      align-self: flex-start;
+      margin-bottom: 0.85rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .card h2 { font-size: 1.35rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .card p { color: var(--text-muted); font-size: 0.88rem; line-height: 1.5; margin-bottom: 1.25rem; flex-grow: 1; }
+    .btn-stack { display: flex; flex-direction: column; gap: 0.6rem; }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.88rem;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+    .btn-pdf { background: #ef4444; color: white; }
+    .btn-pdf:hover { background: #dc2626; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+    .btn-docx { background: #0284c7; color: white; }
+    .btn-docx:hover { background: #0369a1; box-shadow: 0 0 15px rgba(2, 132, 199, 0.4); }
+    .btn-md { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); color: #f1f5f9; }
+    .btn-md:hover { background: rgba(255, 255, 255, 0.15); color: #fff; }
+    footer { text-align: center; color: var(--text-muted); font-size: 0.80rem; margin-top: 3rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge-pill">JJCET AI-PDLC HACKATHON 2026</div>
+      <h1>Cyber Knight — Submission Portal</h1>
+      <p class="subtitle">Route Wise: Junction-Centric Adaptive Traffic Advisory Tool with 15-Min ARIMA Machine Learning Forecasting</p>
+    </header>
+
+    <div class="meta-bar">
+      <div class="meta-item">
+        <span>Team Name</span>
+        <strong>Cyber Knight</strong>
+      </div>
+      <div class="meta-item">
+        <span>Submission Gate</span>
+        <strong>Gate 2 (MRD) & Gate 3 (PRD)</strong>
+      </div>
+      <div class="meta-item">
+        <span>Evaluator</span>
+        <strong>Mr. Vetri Sir & Jury</strong>
+      </div>
+      <div class="meta-item">
+        <span>Status</span>
+        <strong style="color: #4ade80;">Completed & Verified</strong>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- MRD CARD -->
+      <div class="card">
+        <div class="card-tag">GATE 2 • 15 MARKS (COMPLETED)</div>
+        <h2>Market Requirements Document (MRD)</h2>
+        <p>
+          Defines the target commuter & courier segments, pain point analysis, why traditional shortest-distance GPS fails, competitive matrix against Google Maps & Mapbox, and business ROI.
+        </p>
+        <div class="btn-stack">
+          <a class="btn btn-pdf" href="./MRD/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20MRD.pdf" target="_blank">
+            📄 View / Download MRD (PDF)
+          </a>
+          <a class="btn btn-docx" href="./MRD/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20MRD.docx" download>
+            📝 Download MRD (Word .DOCX)
+          </a>
+          <a class="btn btn-md" href="./MRD/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20MRD.md" target="_blank">
+            📋 View Raw Markdown (.MD)
+          </a>
+        </div>
+      </div>
+
+      <!-- PRD CARD -->
+      <div class="card">
+        <div class="card-tag">GATE 3 • 20 MARKS (COMPLETED)</div>
+        <h2>Product Requirements Document (PRD)</h2>
+        <p>
+          Comprehensive specification covering the 5-step real-time flow, ARIMA (1,0,1) traffic speed forecasting, multi-criteria scoring, side-by-side comparison matrix, REST API contract, and 40 automated tests.
+        </p>
+        <div class="btn-stack">
+          <a class="btn btn-pdf" href="./PRD/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20PRD.pdf" target="_blank">
+            📄 View / Download PRD (PDF)
+          </a>
+          <a class="btn btn-docx" href="./PRD/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20PRD.docx" download>
+            📝 Download PRD (Word .DOCX)
+          </a>
+          <a class="btn btn-md" href="./PRD/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20PRD.md" target="_blank">
+            📋 View Raw Markdown (.MD)
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Built with ❤️ by <strong>Team Cyber Knight</strong> • JJCET AI-PDLC Hackathon 2026
+    </footer>
+  </div>
+</body>
+</html>
