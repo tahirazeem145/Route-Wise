@@ -368,19 +368,22 @@ export default function RouteCardList({
                 <div className="d-flex align-items-center gap-1 flex-wrap" style={{ fontSize: '0.76rem' }}>
                   <span style={{ color: 'var(--accent-cyan)' }}>⚡</span>
                   <strong className="text-light">15-Min Traffic Forecast:</strong>
-                  <span
-                    className="badge rounded-pill"
+                  <a
+                    href="https://github.com/zemlyansky/arima"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="badge rounded-pill text-decoration-none"
                     style={{
                       backgroundColor: 'rgba(56, 189, 248, 0.15)',
                       color: '#38bdf8',
                       border: '1px solid rgba(56, 189, 248, 0.35)',
                       fontSize: '0.62rem',
-                      padding: '2px 6px'
+                      padding: '2px 7px'
                     }}
-                    title="Powered by open-source ARIMA time-series model (https://github.com/zemirco/arima)"
+                    title="Powered by official open-source ARIMA time-series model (https://github.com/zemlyansky/arima)"
                   >
-                    ARIMA (1,0,1)
-                  </span>
+                    ARIMA (1,0,1) ↗
+                  </a>
                   <span
                     className="badge rounded-pill ms-1"
                     style={{

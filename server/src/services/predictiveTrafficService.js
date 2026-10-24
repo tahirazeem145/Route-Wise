@@ -3,7 +3,7 @@
  * 
  * Implements short-term predictive traffic forecasting (15m, 30m, 45m horizons)
  * powered by the public open-source ARIMA (Autoregressive Integrated Moving Average) model
- * from the 'arima' public package (https://github.com/zemirco/arima).
+ * from the 'arima' public package (https://github.com/zemlyansky/arima).
  * 
  * Features utilized:
  * 1. ARIMA(1,0,1) auto-regressive state-space filtering over a 12-interval rolling window
@@ -74,7 +74,7 @@ function getDiurnalTrafficFactor(date) {
 }
 
 /**
- * Train an ARIMA(1,0,1) model from the official public 'arima' package (https://github.com/zemirco/arima)
+ * Train an ARIMA(1,0,1) model from the official public 'arima' package (https://github.com/zemlyansky/arima)
  * on a 12-step historical traffic speed sliding window.
  */
 function runArimaForecast(freeFlowSpeed, currentSpeed, now, corridorSensitivity) {
@@ -225,7 +225,7 @@ function predictRouteTraffic(route, options = {}) {
     horizonMinutes: 15,
     modelName: 'ARIMA (1,0,1) Time-Series Model',
     modelPackage: 'arima@0.2.8 (npm public repo)',
-    modelSource: 'https://github.com/zemirco/arima',
+    modelSource: 'https://github.com/zemlyansky/arima',
     predictedDelaySeconds: forecast15.delaySeconds,
     predictedDelayMinutes: forecast15.delayMinutes,
     predictedDurationSeconds: forecast15.durationSeconds,
