@@ -68,6 +68,9 @@ async function recommendRoutes(req, res) {
         }
       },
       recommendedRouteId: rankingResult.recommendedRouteId,
+      switchThreshold: rankingResult.switchThreshold,
+      unverifiedReports: rankingResult.unverifiedReports || [],
+      unverifiedDisclaimer: rankingResult.unverifiedDisclaimer || '',
       routes: enrichedRoutes,
       totalAlternativesFound: enrichedRoutes.length,
       dataSource,
@@ -125,6 +128,9 @@ async function refreshRoutes(req, res) {
         coordinates: { lat: resolvedDestination.lat, lng: resolvedDestination.lng }
       },
       recommendedRouteId: rankingResult.recommendedRouteId,
+      switchThreshold: rankingResult.switchThreshold,
+      unverifiedReports: rankingResult.unverifiedReports || [],
+      unverifiedDisclaimer: rankingResult.unverifiedDisclaimer || '',
       routes: enrichedRoutes,
       totalAlternativesFound: enrichedRoutes.length,
       dataSource,

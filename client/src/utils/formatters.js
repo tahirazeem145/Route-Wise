@@ -68,14 +68,14 @@ export function getRouteComparison(route, allRoutes = []) {
 
   // Sort routes by rank to ensure consistent ordering
   const sorted = [...allRoutes].sort((a, b) => (a.rank || 0) - (b.rank || 0));
-  const topRoute = sorted.find(r => r.rank === 1 || r.isRecommended) || sorted[0];
-  const isTop = route.id === topRoute.id || route.rank === 1;
+  const topRoute = sorted.find(r => r.isRecommended) || sorted.find(r => r.rank === 1) || sorted[0];
+  const isTop = route.id === topRoute.id || route.isRecommended;
 
-  const curDurMins = Math.round((route.estimatedDurationSeconds || 0) / 60);
+  const curDurMins = Math.round(((route.adjustedDurationSeconds || route.estimatedDurationSeconds) || 0) / 60);
   const curDistKm = Number(((route.distanceMeters || 0) / 1000).toFixed(1));
   const curDelayMins = Math.round((route.trafficDelaySeconds || 0) / 60);
 
-  const topDurMins = Math.round((topRoute.estimatedDurationSeconds || 0) / 60);
+  const topDurMins = Math.round(((topRoute.adjustedDurationSeconds || topRoute.estimatedDurationSeconds) || 0) / 60);
   const topDistKm = Number(((topRoute.distanceMeters || 0) / 1000).toFixed(1));
   const topDelayMins = Math.round((topRoute.trafficDelaySeconds || 0) / 60);
 
