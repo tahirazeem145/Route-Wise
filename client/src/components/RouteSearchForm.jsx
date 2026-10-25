@@ -326,37 +326,37 @@ export default function RouteSearchForm({
   };
 
   return (
-    <div className="glass-panel p-3 mb-3">
+    <div className="glass-panel p-3.5 p-md-4 mb-3.5">
       {/* Panel Header */}
-      <div className="d-flex align-items-center justify-content-between mb-3">
+      <div className="d-flex align-items-center justify-content-between mb-3.5 pb-1">
         <h6 className="card-title fw-bold text-white mb-0 d-flex align-items-center gap-2">
           <span
             className="d-flex align-items-center justify-content-center rounded-circle"
             style={{
-              width: 28,
-              height: 28,
+              width: 30,
+              height: 30,
               background: 'rgba(56, 189, 248, 0.2)',
               border: '1px solid rgba(56, 189, 248, 0.4)'
             }}
           >
-            <Navigation size={15} color="#38bdf8" />
+            <Navigation size={16} color="#38bdf8" />
           </span>
-          <span>Plan & Rank Route</span>
+          <span style={{ fontSize: '0.98rem' }}>Plan & Rank Route</span>
         </h6>
-        <span className="badge font-monospace d-flex align-items-center gap-1" style={{ fontSize: '0.68rem', background: 'rgba(255, 255, 255, 0.08)', color: '#94a3b8' }}>
-          <Sparkles size={11} color="#38bdf8" />
+        <span className="badge font-monospace d-flex align-items-center gap-1.5 px-2 py-1" style={{ fontSize: '0.70rem', background: 'rgba(255, 255, 255, 0.08)', color: '#94a3b8' }}>
+          <Sparkles size={12} color="#38bdf8" />
           <span>AI Engine</span>
         </span>
       </div>
 
       <form onSubmit={handleFormSubmit}>
         {/* Source Input with Autocomplete & GPS */}
-        <div className="mb-2 autocomplete-container" ref={sourceContainerRef}>
-          <div className="d-flex align-items-center justify-content-between mb-1">
-            <label className="form-label small text-secondary mb-0 fw-semibold d-flex align-items-center gap-1">
+        <div className="mb-3 autocomplete-container" ref={sourceContainerRef}>
+          <div className="d-flex align-items-center justify-content-between mb-1.5">
+            <label className="form-label small text-secondary mb-0 fw-semibold d-flex align-items-center gap-1.5">
               <span
                 className="rounded-circle d-inline-flex align-items-center justify-content-center text-white"
-                style={{ width: 18, height: 18, fontSize: '0.65rem', background: '#22c55e', fontWeight: 'bold' }}
+                style={{ width: 19, height: 19, fontSize: '0.66rem', background: '#22c55e', fontWeight: 'bold' }}
               >
                 A
               </span>
@@ -369,7 +369,7 @@ export default function RouteSearchForm({
             <button
               type="button"
               className="btn btn-link btn-sm p-0 text-decoration-none d-flex align-items-center gap-1"
-              style={{ fontSize: '0.68rem', color: '#38bdf8' }}
+              style={{ fontSize: '0.70rem', color: '#38bdf8' }}
               onClick={handleLocateMe}
               disabled={locating}
               title="Use current GPS position as Origin"
@@ -380,15 +380,16 @@ export default function RouteSearchForm({
           </div>
 
           {geoNotice && (
-            <div className="small mb-1 text-info font-monospace" style={{ fontSize: '0.66rem' }}>
+            <div className="small mb-1.5 text-info font-monospace" style={{ fontSize: '0.68rem' }}>
               ℹ {geoNotice}
             </div>
           )}
 
-          <div className="input-group input-group-sm">
+          <div className="input-group">
             <input
               type="text"
-              className="form-control glass-input"
+              className="form-control glass-input py-2 px-3"
+              style={{ fontSize: '0.86rem' }}
               placeholder="Search origin (e.g. Central Bus Stand, HPO Junction)..."
               value={inputSource}
               onChange={(e) => {
@@ -409,7 +410,7 @@ export default function RouteSearchForm({
             {inputSource && (
               <button
                 type="button"
-                className="btn glass-input-clear-btn"
+                className="btn glass-input-clear-btn px-2.5"
                 onClick={() => {
                   userTypingSourceRef.current = false;
                   setInputSource('');
@@ -469,10 +470,10 @@ export default function RouteSearchForm({
         </div>
 
         {/* Quick Swap Button */}
-        <div className="text-center my-2">
+        <div className="text-center my-2.5">
           <button
             type="button"
-            className="btn glass-swap-btn d-inline-flex align-items-center gap-1.5"
+            className="btn glass-swap-btn d-inline-flex align-items-center gap-1.5 shadow-sm"
             onClick={handleSwap}
             title="Swap origin and destination"
           >
@@ -482,12 +483,12 @@ export default function RouteSearchForm({
         </div>
 
         {/* Destination Input with Autocomplete */}
-        <div className="mb-2 autocomplete-container" ref={destContainerRef}>
-          <div className="d-flex align-items-center justify-content-between mb-1">
-            <label className="form-label small mb-0 fw-semibold d-flex align-items-center gap-1" style={{ color: '#e2e8f0' }}>
+        <div className="mb-3 autocomplete-container" ref={destContainerRef}>
+          <div className="d-flex align-items-center justify-content-between mb-1.5">
+            <label className="form-label small mb-0 fw-semibold d-flex align-items-center gap-1.5" style={{ color: '#e2e8f0' }}>
               <span
                 className="rounded-circle d-inline-flex align-items-center justify-content-center text-white"
-                style={{ width: 18, height: 18, fontSize: '0.65rem', background: '#ef4444', fontWeight: 'bold' }}
+                style={{ width: 19, height: 19, fontSize: '0.66rem', background: '#ef4444', fontWeight: 'bold' }}
               >
                 B
               </span>
@@ -498,10 +499,11 @@ export default function RouteSearchForm({
             )}
           </div>
 
-          <div className="input-group input-group-sm">
+          <div className="input-group">
             <input
               type="text"
-              className="form-control glass-input"
+              className="form-control glass-input py-2 px-3"
+              style={{ fontSize: '0.86rem' }}
               placeholder="Search destination (e.g. Chathiram, Thillai Nagar)..."
               value={inputDest}
               onChange={(e) => {
@@ -522,7 +524,7 @@ export default function RouteSearchForm({
             {inputDest && (
               <button
                 type="button"
-                className="btn glass-input-clear-btn"
+                className="btn glass-input-clear-btn px-2.5"
                 onClick={() => {
                   userTypingDestRef.current = false;
                   setInputDest('');
@@ -582,21 +584,29 @@ export default function RouteSearchForm({
         </div>
 
         {/* Map Click Guidance Helper */}
-        <div className="mb-3 d-flex align-items-center gap-1.5 text-muted" style={{ fontSize: '0.70rem' }}>
-          <Sparkles size={12} color="#38bdf8" />
+        <div
+          className="mb-3 px-3 py-2 rounded-2 d-flex align-items-center gap-2"
+          style={{
+            background: 'rgba(56, 189, 248, 0.05)',
+            border: '1px solid rgba(56, 189, 248, 0.14)',
+            fontSize: '0.72rem',
+            color: '#94a3b8'
+          }}
+        >
+          <Sparkles size={13} color="#38bdf8" className="flex-shrink-0" />
           <span>Click anywhere on the map to set Origin (A) or Destination (B).</span>
         </div>
 
-        {/* Quick Presets & Junction Points (Compact) */}
-        <div className="mb-2.5">
-          <div className="d-flex align-items-center justify-content-between mb-1">
-            <span className="fw-semibold d-flex align-items-center gap-1" style={{ fontSize: '0.70rem', color: '#94a3b8' }}>
-              <Navigation size={11} color="#38bdf8" />
+        {/* Quick Presets & Junction Points */}
+        <div className="mb-4 pt-1">
+          <div className="d-flex align-items-center justify-content-between mb-2">
+            <span className="fw-semibold d-flex align-items-center gap-1.5" style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+              <Navigation size={12} color="#38bdf8" />
               <span>Trichy Corridor Presets:</span>
             </span>
           </div>
 
-          <div className="d-flex flex-wrap gap-1 mb-2">
+          <div className="d-flex flex-wrap gap-2 mb-3">
             {PRESETS.map((p, idx) => (
               <button
                 key={idx}
@@ -610,14 +620,14 @@ export default function RouteSearchForm({
             ))}
           </div>
 
-          <div className="d-flex align-items-center justify-content-between mb-1">
-            <span className="fw-semibold d-flex align-items-center gap-1" style={{ fontSize: '0.68rem', color: '#64748b' }}>
-              <Sparkles size={10} color="#38bdf8" />
+          <div className="d-flex align-items-center justify-content-between mb-2 mt-3">
+            <span className="fw-semibold d-flex align-items-center gap-1.5" style={{ fontSize: '0.70rem', color: '#64748b' }}>
+              <Sparkles size={11} color="#38bdf8" />
               <span>Junction Hotspots (Click to set):</span>
             </span>
           </div>
 
-          <div className="d-flex flex-wrap gap-1">
+          <div className="d-flex flex-wrap gap-2 mb-1">
             {TRICHY_JUNCTIONS.map((j, idx) => (
               <button
                 key={idx}
@@ -635,15 +645,19 @@ export default function RouteSearchForm({
         {/* Real-time Guidance Banner */}
         {(!inputSource.trim() || !inputDest.trim()) ? (
           <div
-            className="mb-2 p-2 rounded-2 d-flex align-items-center gap-2"
+            className="rounded-3 d-flex align-items-center gap-2.5"
             style={{
+              marginTop: '1.25rem',
+              marginBottom: '1.25rem',
+              padding: '12px 16px',
               background: 'rgba(56, 189, 248, 0.08)',
-              border: '1px dashed rgba(56, 189, 248, 0.25)',
-              fontSize: '0.72rem',
-              color: '#94a3b8'
+              border: '1px dashed rgba(56, 189, 248, 0.3)',
+              fontSize: '0.74rem',
+              color: '#94a3b8',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
             }}
           >
-            <Sparkles size={13} color="#38bdf8" className="flex-shrink-0" />
+            <Sparkles size={15} color="#38bdf8" className="flex-shrink-0" />
             <span>
               {!inputSource.trim() && !inputDest.trim()
                 ? 'Select a Trichy preset above or type Origin (A) & Destination (B) to rank routes.'
@@ -654,24 +668,29 @@ export default function RouteSearchForm({
           </div>
         ) : (
           <div
-            className="mb-2 p-1.5 rounded-2 d-flex align-items-center gap-2"
+            className="rounded-3 d-flex align-items-center gap-2.5"
             style={{
-              background: 'rgba(34, 197, 94, 0.1)',
-              border: '1px solid rgba(34, 197, 94, 0.25)',
-              fontSize: '0.72rem',
-              color: '#86efac'
+              marginTop: '1.25rem',
+              marginBottom: '1.25rem',
+              padding: '12px 16px',
+              background: 'rgba(34, 197, 94, 0.12)',
+              border: '1px solid rgba(34, 197, 94, 0.35)',
+              fontSize: '0.74rem',
+              color: '#86efac',
+              boxShadow: '0 2px 10px rgba(34, 197, 94, 0.1)'
             }}
           >
-            <CheckCircle2 size={13} color="#22c55e" className="flex-shrink-0" />
+            <CheckCircle2 size={16} color="#22c55e" className="flex-shrink-0" />
             <span>Ready to evaluate live multi-criteria routes with TomTom & AI forecasting.</span>
           </div>
         )}
 
         {/* Action Buttons */}
-        <div className="d-grid gap-2 mb-3">
+        <div className="d-grid gap-3 mb-4" style={{ marginTop: '0.25rem' }}>
           <button
             type="submit"
-            className="btn glass-btn-primary d-flex align-items-center justify-content-center gap-2 py-2"
+            className="btn glass-btn-primary d-flex align-items-center justify-content-center gap-2"
+            style={{ fontSize: '0.92rem', padding: '12px 18px', borderRadius: '10px' }}
             disabled={loading || !inputSource.trim() || !inputDest.trim()}
           >
             {loading ? (
@@ -681,7 +700,7 @@ export default function RouteSearchForm({
               </>
             ) : (
               <>
-                <Search size={15} />
+                <Search size={16} />
                 <span>Find & Rank Best Route</span>
               </>
             )}
@@ -690,7 +709,8 @@ export default function RouteSearchForm({
           {hasResults && (
             <button
               type="button"
-              className="btn glass-btn-secondary btn-sm d-flex align-items-center justify-content-center gap-2 py-1"
+              className="btn glass-btn-secondary d-flex align-items-center justify-content-center gap-2"
+              style={{ fontSize: '0.86rem', padding: '10px 16px', borderRadius: '10px' }}
               onClick={onRefresh}
               disabled={refreshing || loading}
             >
@@ -701,7 +721,7 @@ export default function RouteSearchForm({
                 </>
               ) : (
                 <>
-                  <RefreshCw size={13} />
+                  <RefreshCw size={14} />
                   <span>Refresh Traffic Now</span>
                 </>
               )}
@@ -712,7 +732,7 @@ export default function RouteSearchForm({
         {/* Auto Refresh Toggle */}
         {hasResults && (
           <div
-            className="pt-2 d-flex align-items-center justify-content-between"
+            className="pt-3 pb-1 d-flex align-items-center justify-content-between"
             style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}
           >
             <div className="form-check form-switch mb-0">
