@@ -29,4 +29,6 @@ Thumbs.db
 
 # Runtime data
 server/data/keys.json
+server/data/*.db
+server/data/*.db-*
 !server/data/.gitkeep

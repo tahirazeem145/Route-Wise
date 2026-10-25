@@ -131,6 +131,11 @@ function predictRouteTraffic(route, options = {}) {
   const horizons = [0, 15, 30, 45];
   const timeline = horizons.map((offsetMinutes, idx) => {
     if (offsetMinutes === 0) {
+      const liveDelayRatio = freeFlowSeconds > 0 ? (currentDelay / freeFlowSeconds) : 0;
+      let liveSeverity = 'low';
+      if (liveDelayRatio >= 0.40) liveSeverity = 'heavy';
+      else if (liveDelayRatio >= 0.15) liveSeverity = 'moderate';
+
       return {
         offsetMinutes: 0,
         label: 'Current Live',
@@ -139,7 +144,7 @@ function predictRouteTraffic(route, options = {}) {
         delaySeconds: currentDelay,
         delayMinutes: Math.round(currentDelay / 60),
         averageSpeedKmph: currentSpeed,
-        severity: currentDelay > 1800 ? 'heavy' : (currentDelay > 600 ? 'moderate' : 'low')
+        severity: liveSeverity
       };
     }
 

@@ -10,6 +10,7 @@
     "client": "npm run dev --prefix client",
     "dev:client": "npm run dev --prefix client",
     "test:server": "npm test --prefix server",
+    "test:provider": "npm run test:provider --prefix server",
     "generate:key": "npm run generate:key --prefix server"
   },
   "keywords": [

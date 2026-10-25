@@ -4,6 +4,7 @@ import {
   formatDistance,
   formatDuration,
   formatDelay,
+  formatTime,
   getRouteComparison
 } from '../src/utils/formatters.js';
 
@@ -52,6 +53,19 @@ describe('Client Formatters Utility Test Suite', () => {
     it('should format positive delay in minutes', () => {
       assert.equal(formatDelay(600), '+10 min delay');
       assert.equal(formatDelay(840), '+14 min delay');
+    });
+  });
+
+  describe('formatTime', () => {
+    it('should format ISO timestamp string to local time', () => {
+      const formatted = formatTime('2026-10-24T12:00:00.000Z');
+      assert.ok(typeof formatted === 'string' && formatted.length > 0);
+    });
+
+    it('should handle falsy and invalid timestamps gracefully', () => {
+      assert.equal(formatTime(''), '');
+      assert.equal(formatTime(null), '');
+      assert.equal(formatTime('invalid-date-string'), 'invalid-date-string');
     });
   });
 

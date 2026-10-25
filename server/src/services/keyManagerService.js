@@ -10,6 +10,8 @@ function hashKey(rawKey) {
   return crypto.createHash('sha256').update(String(rawKey).trim()).digest('hex');
 }
 
+let keysCache = null;
+
 function ensureDataFile() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -26,23 +28,30 @@ function ensureDataFile() {
       }
     };
     fs.writeFileSync(KEYS_FILE, JSON.stringify(initialRecords, null, 2), 'utf8');
+    keysCache = initialRecords;
     logger.info(`Bootstrapped initial local development API key: "${defaultDevKey}"`);
   }
 }
 
-function loadKeys() {
+function loadKeys(forceReload = false) {
+  if (keysCache && !forceReload) {
+    return keysCache;
+  }
   ensureDataFile();
   try {
     const raw = fs.readFileSync(KEYS_FILE, 'utf8');
-    return JSON.parse(raw);
+    keysCache = JSON.parse(raw);
+    return keysCache;
   } catch (err) {
     logger.error('Failed to read keys.json, resetting to empty store:', err.message);
-    return {};
+    keysCache = {};
+    return keysCache;
   }
 }
 
 function saveKeys(keys) {
   ensureDataFile();
+  keysCache = { ...keys };
   fs.writeFileSync(KEYS_FILE, JSON.stringify(keys, null, 2), 'utf8');
 }
 

@@ -8,6 +8,27 @@ const TRANSPARENT_PNG = Buffer.from(
   'base64'
 );
 
+// In-memory tile cache to accelerate map rendering and prevent tile request floods
+const tileCache = new Map();
+const TILE_CACHE_TTL_MS = 60 * 1000;
+
+function getCachedTile(key) {
+  const item = tileCache.get(key);
+  if (item && Date.now() - item.time < TILE_CACHE_TTL_MS) {
+    return item.buffer;
+  }
+  if (item) tileCache.delete(key);
+  return null;
+}
+
+function setCachedTile(key, buffer) {
+  if (tileCache.size > 800) {
+    const oldestKey = tileCache.keys().next().value;
+    tileCache.delete(oldestKey);
+  }
+  tileCache.set(key, { buffer, time: Date.now() });
+}
+
 /**
  * Proxy TomTom Traffic Flow and Incident tiles.
  * Secures the provider API key entirely on the server.
@@ -22,34 +43,48 @@ async function getTrafficFlowTile(req, res) {
     return res.end(TRANSPARENT_PNG);
   }
 
+  const cacheKey = `flow:${z}:${x}:${y}`;
+  const cached = getCachedTile(cacheKey);
+  if (cached) {
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    return res.end(cached);
+  }
+
   // TomTom Traffic Flow relative tile URL
   // style: relative0 (colors relative to free-flow: green, yellow, orange, red)
   const tomtomTileUrl = `${config.tomtom.baseUrl}/traffic/map/4/tile/flow/relative0/${z}/${x}/${y}.png?key=${config.tomtom.apiKey}&thickness=10`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-
     const providerRes = await fetch(tomtomTileUrl, {
       signal: controller.signal,
       headers: { 'Accept': 'image/png' }
     });
-    clearTimeout(timeoutId);
 
     if (providerRes.ok) {
       const buffer = await providerRes.arrayBuffer();
+      const nodeBuffer = Buffer.from(buffer);
+      setCachedTile(cacheKey, nodeBuffer);
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Cache-Control', 'public, max-age=60'); // Cache for 60s
-      return res.end(Buffer.from(buffer));
+      return res.end(nodeBuffer);
     }
 
-    // If TomTom returns 404, 403, or rate limit: return transparent tile
+    // If TomTom returns 404, 403, or rate limit: return transparent tile and cache it
+    setCachedTile(cacheKey, TRANSPARENT_PNG);
     res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=60');
     return res.end(TRANSPARENT_PNG);
   } catch (err) {
     logger.warn(`Traffic tile proxy error for ${z}/${x}/${y}: ${err.message}`);
+    setCachedTile(cacheKey, TRANSPARENT_PNG);
     res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=60');
     return res.end(TRANSPARENT_PNG);
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -61,30 +96,44 @@ async function getTrafficIncidentsTile(req, res) {
     return res.end(TRANSPARENT_PNG);
   }
 
+  const cacheKey = `incidents:${z}:${x}:${y}`;
+  const cached = getCachedTile(cacheKey);
+  if (cached) {
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    return res.end(cached);
+  }
+
   const tomtomTileUrl = `${config.tomtom.baseUrl}/traffic/map/4/tile/incidents/s0/${z}/${x}/${y}.png?key=${config.tomtom.apiKey}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-
     const providerRes = await fetch(tomtomTileUrl, {
       signal: controller.signal,
       headers: { 'Accept': 'image/png' }
     });
-    clearTimeout(timeoutId);
 
     if (providerRes.ok) {
       const buffer = await providerRes.arrayBuffer();
+      const nodeBuffer = Buffer.from(buffer);
+      setCachedTile(cacheKey, nodeBuffer);
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Cache-Control', 'public, max-age=60');
-      return res.end(Buffer.from(buffer));
+      return res.end(nodeBuffer);
     }
 
+    setCachedTile(cacheKey, TRANSPARENT_PNG);
     res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=60');
     return res.end(TRANSPARENT_PNG);
   } catch (err) {
+    setCachedTile(cacheKey, TRANSPARENT_PNG);
     res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=60');
     return res.end(TRANSPARENT_PNG);
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -114,15 +163,15 @@ async function setTomTomKey(req, res) {
   const cleanKey = apiKey.trim();
 
   // Test against TomTom traffic flow tile
+  const testUrl = `https://api.tomtom.com/traffic/map/4/tile/flow/relative0/10/500/500.png?key=${cleanKey}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
+
   try {
-    const testUrl = `https://api.tomtom.com/traffic/map/4/tile/flow/relative0/10/500/500.png?key=${cleanKey}`;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
     const testRes = await fetch(testUrl, {
       signal: controller.signal,
       headers: { 'Accept': 'image/png' }
     });
-    clearTimeout(timeoutId);
 
     if (!testRes.ok) {
       return res.status(400).json({
@@ -135,18 +184,24 @@ async function setTomTomKey(req, res) {
     config.tomtom.apiKey = cleanKey;
     config.tomtom.hasKey = true;
 
-    // Persist to server/.env so it survives restarts
+    // Persist to server/.env so it survives restarts (create from .env.example if missing)
     try {
       const envPath = path.resolve(__dirname, '../../.env');
+      const envExamplePath = path.resolve(__dirname, '../../.env.example');
+      let envContent = '';
+
       if (fs.existsSync(envPath)) {
-        let envContent = fs.readFileSync(envPath, 'utf8');
-        if (envContent.includes('TOMTOM_API_KEY=')) {
-          envContent = envContent.replace(/TOMTOM_API_KEY=.*/, `TOMTOM_API_KEY=${cleanKey}`);
-        } else {
-          envContent += `\nTOMTOM_API_KEY=${cleanKey}\n`;
-        }
-        fs.writeFileSync(envPath, envContent, 'utf8');
+        envContent = fs.readFileSync(envPath, 'utf8');
+      } else if (fs.existsSync(envExamplePath)) {
+        envContent = fs.readFileSync(envExamplePath, 'utf8');
       }
+
+      if (envContent.includes('TOMTOM_API_KEY=')) {
+        envContent = envContent.replace(/TOMTOM_API_KEY=.*/, `TOMTOM_API_KEY=${cleanKey}`);
+      } else {
+        envContent += `\nTOMTOM_API_KEY=${cleanKey}\n`;
+      }
+      fs.writeFileSync(envPath, envContent, 'utf8');
     } catch (fsErr) {
       logger.warn(`Could not persist TOMTOM_API_KEY to .env: ${fsErr.message}`);
     }
@@ -162,6 +217,8 @@ async function setTomTomKey(req, res) {
       success: false,
       error: { message: `Verification failed: ${err.message}` }
     });
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

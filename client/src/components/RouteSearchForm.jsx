@@ -1,9 +1,73 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Navigation,
+  LocateFixed,
+  ArrowUpDown,
+  Sparkles,
+  SlidersHorizontal,
+  RefreshCw,
+  Search,
+  MapPin,
+  CheckCircle2
+} from 'lucide-react';
+import { searchLocationsApi } from '../services/api';
 
 const PRESETS = [
-  { label: 'Trichy → Coimbatore', src: 'Tiruchirappalli', dst: 'Coimbatore' },
-  { label: 'Salem → Bangalore', src: 'Salem', dst: 'Bangalore' },
-  { label: 'Chennai → Madurai', src: 'Chennai', dst: 'Madurai' }
+  {
+    label: 'Central Bus Stand ⇄ Chathiram',
+    shortLabel: 'CBS ⇄ Chathiram',
+    src: 'Central Bus Stand, Trichy',
+    dst: 'Chathiram Bus Stand, Trichy',
+    tag: 'Arterial'
+  },
+  {
+    label: 'Chathiram ⇄ Srirangam (Kaveri Bridge)',
+    shortLabel: 'Chathiram ⇄ Srirangam',
+    src: 'Chathiram Bus Stand, Trichy',
+    dst: 'Srirangam Rajagopuram, Trichy',
+    tag: 'Bottleneck'
+  },
+  {
+    label: 'HPO Junction ⇄ Thillai Nagar',
+    shortLabel: 'HPO ⇄ Thillai Nagar',
+    src: 'Head Post Office Junction, Trichy',
+    dst: 'Thillai Nagar, Trichy',
+    tag: 'Artery'
+  },
+  {
+    label: 'Palakkarai ⇄ Gandhi Market',
+    shortLabel: 'Palakkarai ⇄ Gandhi Mkt',
+    src: 'Palakkarai Junction, Trichy',
+    dst: 'Gandhi Market, Trichy',
+    tag: 'Hotspot'
+  },
+  {
+    label: 'TVS Tollgate ⇄ Airport Junction',
+    shortLabel: 'TVS ⇄ Airport',
+    src: 'TVS Tollgate Junction, Trichy',
+    dst: 'Tiruchirappalli International Airport',
+    tag: 'Merge'
+  },
+  {
+    label: 'Central Bus Stand ⇄ NIT Trichy',
+    shortLabel: 'CBS ⇄ NIT Trichy',
+    src: 'Central Bus Stand, Trichy',
+    dst: 'NIT Trichy (Thuvakudi)',
+    tag: 'Highway'
+  }
+];
+
+const TRICHY_JUNCTIONS = [
+  { name: 'Central Bus Stand, Trichy', short: 'Central Bus Stand' },
+  { name: 'Chathiram Bus Stand, Trichy', short: 'Chathiram' },
+  { name: 'Thillai Nagar, Trichy', short: 'Thillai Nagar' },
+  { name: 'Head Post Office Junction, Trichy', short: 'HPO Junction' },
+  { name: 'Palakkarai Junction, Trichy', short: 'Palakkarai' },
+  { name: 'Gandhi Market, Trichy', short: 'Gandhi Market' },
+  { name: 'Srirangam Rajagopuram, Trichy', short: 'Srirangam' },
+  { name: 'TVS Tollgate Junction, Trichy', short: 'TVS Tollgate' },
+  { name: 'Tiruchirappalli International Airport', short: 'Trichy Airport' },
+  { name: 'NIT Trichy (Thuvakudi)', short: 'NIT Trichy' }
 ];
 
 export default function RouteSearchForm({
@@ -24,82 +88,384 @@ export default function RouteSearchForm({
 }) {
   const [showWeights, setShowWeights] = useState(false);
 
+  // Local input values to decouple keystrokes from parent App re-renders (120 FPS typing)
+  const [inputSource, setInputSource] = useState(source || '');
+  const [inputDest, setInputDest] = useState(destination || '');
+
+  // Keep local inputs in sync when parent props change (e.g. from preset or map-click)
+  useEffect(() => {
+    if (!userTypingSourceRef.current) {
+      setInputSource(source || '');
+    }
+  }, [source]);
+
+  useEffect(() => {
+    if (!userTypingDestRef.current) {
+      setInputDest(destination || '');
+    }
+  }, [destination]);
+
+  // Autocomplete states for Origin
+  const [sourceSuggestions, setSourceSuggestions] = useState([]);
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [showSourceDropdown, setShowSourceDropdown] = useState(false);
+  const [sourceSelectedIndex, setSourceSelectedIndex] = useState(-1);
+
+  // Autocomplete states for Destination
+  const [destSuggestions, setDestSuggestions] = useState([]);
+  const [destLoading, setDestLoading] = useState(false);
+  const [showDestDropdown, setShowDestDropdown] = useState(false);
+  const [destSelectedIndex, setDestSelectedIndex] = useState(-1);
+
+  // Geolocation state
+  const [locating, setLocating] = useState(false);
+  const [geoNotice, setGeoNotice] = useState(null);
+
+  const sourceContainerRef = useRef(null);
+  const destContainerRef = useRef(null);
+  const userTypingSourceRef = useRef(false);
+  const userTypingDestRef = useRef(false);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (sourceContainerRef.current && !sourceContainerRef.current.contains(event.target)) {
+        setShowSourceDropdown(false);
+      }
+      if (destContainerRef.current && !destContainerRef.current.contains(event.target)) {
+        setShowDestDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Debounced search for Origin — triggers only when user actively types
+  useEffect(() => {
+    if (!userTypingSourceRef.current || !inputSource || inputSource.trim().length < 2) {
+      setSourceSuggestions([]);
+      setSourceLoading(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSourceLoading(true);
+      const results = await searchLocationsApi(inputSource);
+      setSourceSuggestions(results);
+      setSourceLoading(false);
+      setSourceSelectedIndex(-1);
+      if (results.length > 0) {
+        setShowSourceDropdown(true);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [inputSource]);
+
+  // Debounced search for Destination — triggers only when user actively types
+  useEffect(() => {
+    if (!userTypingDestRef.current || !inputDest || inputDest.trim().length < 2) {
+      setDestSuggestions([]);
+      setDestLoading(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setDestLoading(true);
+      const results = await searchLocationsApi(inputDest);
+      setDestSuggestions(results);
+      setDestLoading(false);
+      setDestSelectedIndex(-1);
+      if (results.length > 0) {
+        setShowDestDropdown(true);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [inputDest]);
+
+  // Geolocation trigger
+  const handleLocateMe = () => {
+    if (!navigator.geolocation) {
+      setGeoNotice('Geolocation is not supported by your browser.');
+      setTimeout(() => setGeoNotice(null), 3000);
+      return;
+    }
+
+    setLocating(true);
+    setGeoNotice('Detecting GPS coordinates...');
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        const lat = Number(pos.coords.latitude.toFixed(5));
+        const lng = Number(pos.coords.longitude.toFixed(5));
+        const val = `${lat}, ${lng}`;
+        userTypingSourceRef.current = false;
+        setInputSource(val);
+        setSource(val);
+        setGeoNotice(`GPS locked: ${lat}, ${lng}`);
+        setTimeout(() => setGeoNotice(null), 2500);
+      },
+      (err) => {
+        setLocating(false);
+        setGeoNotice(`GPS failed: ${err.message}`);
+        setTimeout(() => setGeoNotice(null), 3500);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
   const handleSwap = () => {
-    const temp = source;
-    setSource(destination);
+    userTypingSourceRef.current = false;
+    userTypingDestRef.current = false;
+    const temp = inputSource;
+    setInputSource(inputDest);
+    setInputDest(temp);
+    setSource(inputDest);
     setDestination(temp);
+    setShowSourceDropdown(false);
+    setShowDestDropdown(false);
   };
 
   const handlePreset = (preset) => {
+    userTypingSourceRef.current = false;
+    userTypingDestRef.current = false;
+    setInputSource(preset.src);
+    setInputDest(preset.dst);
     setSource(preset.src);
     setDestination(preset.dst);
+    setShowSourceDropdown(false);
+    setShowDestDropdown(false);
+  };
+
+  const handleSelectSource = (loc) => {
+    userTypingSourceRef.current = false;
+    setInputSource(loc.name);
+    setSource(loc.name);
+    setSourceSuggestions([]);
+    setShowSourceDropdown(false);
+  };
+
+  const handleSelectDest = (loc) => {
+    userTypingDestRef.current = false;
+    setInputDest(loc.name);
+    setDestination(loc.name);
+    setDestSuggestions([]);
+    setShowDestDropdown(false);
+  };
+
+  const handleQuickJunction = (juncName) => {
+    userTypingSourceRef.current = false;
+    userTypingDestRef.current = false;
+    if (!inputSource.trim()) {
+      setInputSource(juncName);
+      setSource(juncName);
+    } else if (!inputDest.trim()) {
+      setInputDest(juncName);
+      setDestination(juncName);
+    } else {
+      setInputDest(juncName);
+      setDestination(juncName);
+    }
+    setShowSourceDropdown(false);
+    setShowDestDropdown(false);
+  };
+
+  // Keyboard navigation for Origin
+  const handleSourceKeyDown = (e) => {
+    if (!showSourceDropdown || sourceSuggestions.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSourceSelectedIndex((prev) => (prev + 1) % sourceSuggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSourceSelectedIndex((prev) => (prev <= 0 ? sourceSuggestions.length - 1 : prev - 1));
+    } else if (e.key === 'Enter') {
+      if (sourceSelectedIndex >= 0 && sourceSelectedIndex < sourceSuggestions.length) {
+        e.preventDefault();
+        handleSelectSource(sourceSuggestions[sourceSelectedIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setShowSourceDropdown(false);
+    }
+  };
+
+  // Keyboard navigation for Destination
+  const handleDestKeyDown = (e) => {
+    if (!showDestDropdown || destSuggestions.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setDestSelectedIndex((prev) => (prev + 1) % destSuggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setDestSelectedIndex((prev) => (prev <= 0 ? destSuggestions.length - 1 : prev - 1));
+    } else if (e.key === 'Enter') {
+      if (destSelectedIndex >= 0 && destSelectedIndex < destSuggestions.length) {
+        e.preventDefault();
+        handleSelectDest(destSuggestions[destSelectedIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setShowDestDropdown(false);
+    }
   };
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
-    if (source.trim() && destination.trim()) {
-      onSubmit();
+    userTypingSourceRef.current = false;
+    userTypingDestRef.current = false;
+    setShowSourceDropdown(false);
+    setShowDestDropdown(false);
+    const s = inputSource.trim();
+    const d = inputDest.trim();
+    setSource(s);
+    setDestination(d);
+    if (s && d) {
+      onSubmit(s, d);
     }
   };
 
   return (
     <div className="glass-panel p-3 mb-3">
+      {/* Panel Header */}
       <div className="d-flex align-items-center justify-content-between mb-3">
         <h6 className="card-title fw-bold text-white mb-0 d-flex align-items-center gap-2">
           <span
             className="d-flex align-items-center justify-content-center rounded-circle"
             style={{
-              width: 26,
-              height: 26,
+              width: 28,
+              height: 28,
               background: 'rgba(56, 189, 248, 0.2)',
               border: '1px solid rgba(56, 189, 248, 0.4)'
             }}
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
-            </svg>
+            <Navigation size={15} color="#38bdf8" />
           </span>
           <span>Plan & Rank Route</span>
         </h6>
-        <span className="badge font-monospace" style={{ fontSize: '0.68rem', background: 'rgba(255, 255, 255, 0.08)', color: '#94a3b8' }}>
-          AI Engine
+        <span className="badge font-monospace d-flex align-items-center gap-1" style={{ fontSize: '0.68rem', background: 'rgba(255, 255, 255, 0.08)', color: '#94a3b8' }}>
+          <Sparkles size={11} color="#38bdf8" />
+          <span>AI Engine</span>
         </span>
       </div>
 
       <form onSubmit={handleFormSubmit}>
-        {/* Source Input */}
-        <div className="mb-2">
-          <label className="form-label small text-secondary mb-1 fw-semibold d-flex align-items-center gap-1">
-            <span
-              className="rounded-circle d-inline-flex align-items-center justify-content-center text-white"
-              style={{ width: 18, height: 18, fontSize: '0.65rem', background: '#22c55e', fontWeight: 'bold' }}
+        {/* Source Input with Autocomplete & GPS */}
+        <div className="mb-2 autocomplete-container" ref={sourceContainerRef}>
+          <div className="d-flex align-items-center justify-content-between mb-1">
+            <label className="form-label small text-secondary mb-0 fw-semibold d-flex align-items-center gap-1">
+              <span
+                className="rounded-circle d-inline-flex align-items-center justify-content-center text-white"
+                style={{ width: 18, height: 18, fontSize: '0.65rem', background: '#22c55e', fontWeight: 'bold' }}
+              >
+                A
+              </span>
+              <span className="text-light">Origin Location</span>
+              {sourceLoading && (
+                <span className="spinner-border spinner-border-sm text-info ms-1" style={{ width: 11, height: 11 }} />
+              )}
+            </label>
+
+            <button
+              type="button"
+              className="btn btn-link btn-sm p-0 text-decoration-none d-flex align-items-center gap-1"
+              style={{ fontSize: '0.68rem', color: '#38bdf8' }}
+              onClick={handleLocateMe}
+              disabled={locating}
+              title="Use current GPS position as Origin"
             >
-              A
-            </span>
-            <span className="text-light">Origin Location</span>
-          </label>
+              <LocateFixed size={12} className={locating ? 'spinner-border spinner-border-sm' : ''} />
+              <span>{locating ? 'Locating...' : 'Use My GPS'}</span>
+            </button>
+          </div>
+
+          {geoNotice && (
+            <div className="small mb-1 text-info font-monospace" style={{ fontSize: '0.66rem' }}>
+              ℹ {geoNotice}
+            </div>
+          )}
+
           <div className="input-group input-group-sm">
             <input
               type="text"
               className="form-control glass-input"
-              placeholder="e.g. Tiruchirappalli or 10.79, 78.70"
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
+              placeholder="Search origin (e.g. Central Bus Stand, HPO Junction)..."
+              value={inputSource}
+              onChange={(e) => {
+                userTypingSourceRef.current = true;
+                setInputSource(e.target.value);
+                setShowSourceDropdown(true);
+              }}
+              onFocus={() => {
+                if (sourceSuggestions.length > 0) setShowSourceDropdown(true);
+              }}
+              onKeyDown={handleSourceKeyDown}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={showSourceDropdown}
               required
-              disabled={loading}
+              autoComplete="off"
             />
-            {source && (
+            {inputSource && (
               <button
                 type="button"
-                className="btn glass-btn-secondary"
-                onClick={() => setSource('')}
+                className="btn glass-input-clear-btn"
+                onClick={() => {
+                  userTypingSourceRef.current = false;
+                  setInputSource('');
+                  setSource('');
+                  setSourceSuggestions([]);
+                  setShowSourceDropdown(false);
+                }}
                 title="Clear origin"
+                aria-label="Clear origin"
               >
                 &times;
               </button>
             )}
           </div>
+
+          {/* Source Autocomplete Dropdown */}
+          {showSourceDropdown && sourceSuggestions.length > 0 && (
+            <div className="autocomplete-dropdown" role="listbox">
+              {sourceSuggestions.map((loc, idx) => (
+                <div
+                  key={idx}
+                  className={`autocomplete-item ${idx === sourceSelectedIndex ? 'is-selected' : ''}`}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelectSource(loc);
+                  }}
+                  role="option"
+                  aria-selected={idx === sourceSelectedIndex}
+                >
+                  <div className="autocomplete-title">
+                    <div className="d-flex align-items-center gap-1.5 text-truncate">
+                      <MapPin size={13} color="#22c55e" className="flex-shrink-0" />
+                      <span className="text-truncate">{loc.name}</span>
+                    </div>
+                    {loc.isJunction && (
+                      <span
+                        className="badge font-monospace flex-shrink-0"
+                        style={{
+                          fontSize: '0.62rem',
+                          background: 'rgba(239, 68, 68, 0.2)',
+                          color: '#f87171',
+                          border: '1px solid rgba(239, 68, 68, 0.4)'
+                        }}
+                      >
+                        ⚡ Junction
+                      </span>
+                    )}
+                  </div>
+                  <div className="autocomplete-sub">
+                    <span>{loc.municipality || 'Tiruchirappalli'}{loc.country ? `, ${loc.country}` : ''}</span>
+                    <span className="autocomplete-coord">{loc.lat.toFixed(4)}, {loc.lng.toFixed(4)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Quick Swap Button */}
@@ -109,76 +475,204 @@ export default function RouteSearchForm({
             className="btn glass-swap-btn d-inline-flex align-items-center gap-1.5"
             onClick={handleSwap}
             title="Swap origin and destination"
-            disabled={loading}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="7 10 12 15 17 10"/>
-              <polyline points="17 14 12 9 7 14"/>
-            </svg>
-            <span>Swap</span>
+            <ArrowUpDown size={13} color="#38bdf8" />
+            <span>Swap Direction</span>
           </button>
         </div>
 
-        {/* Destination Input */}
-        <div className="mb-3">
-          <label className="form-label small mb-1 fw-semibold d-flex align-items-center gap-1" style={{ color: '#e2e8f0' }}>
-            <span
-              className="rounded-circle d-inline-flex align-items-center justify-content-center text-white"
-              style={{ width: 18, height: 18, fontSize: '0.65rem', background: '#ef4444', fontWeight: 'bold' }}
-            >
-              B
-            </span>
-            <span className="text-light">Destination Location</span>
-          </label>
+        {/* Destination Input with Autocomplete */}
+        <div className="mb-2 autocomplete-container" ref={destContainerRef}>
+          <div className="d-flex align-items-center justify-content-between mb-1">
+            <label className="form-label small mb-0 fw-semibold d-flex align-items-center gap-1" style={{ color: '#e2e8f0' }}>
+              <span
+                className="rounded-circle d-inline-flex align-items-center justify-content-center text-white"
+                style={{ width: 18, height: 18, fontSize: '0.65rem', background: '#ef4444', fontWeight: 'bold' }}
+              >
+                B
+              </span>
+              <span className="text-light">Destination Location</span>
+            </label>
+            {destLoading && (
+              <span className="spinner-border spinner-border-sm text-info" style={{ width: 11, height: 11 }} />
+            )}
+          </div>
+
           <div className="input-group input-group-sm">
             <input
               type="text"
               className="form-control glass-input"
-              placeholder="e.g. Coimbatore or 11.01, 76.95"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
+              placeholder="Search destination (e.g. Chathiram, Thillai Nagar)..."
+              value={inputDest}
+              onChange={(e) => {
+                userTypingDestRef.current = true;
+                setInputDest(e.target.value);
+                setShowDestDropdown(true);
+              }}
+              onFocus={() => {
+                if (destSuggestions.length > 0) setShowDestDropdown(true);
+              }}
+              onKeyDown={handleDestKeyDown}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={showDestDropdown}
               required
-              disabled={loading}
+              autoComplete="off"
             />
-            {destination && (
+            {inputDest && (
               <button
                 type="button"
-                className="btn glass-btn-secondary"
-                onClick={() => setDestination('')}
+                className="btn glass-input-clear-btn"
+                onClick={() => {
+                  userTypingDestRef.current = false;
+                  setInputDest('');
+                  setDestination('');
+                  setDestSuggestions([]);
+                  setShowDestDropdown(false);
+                }}
                 title="Clear destination"
+                aria-label="Clear destination"
               >
                 &times;
               </button>
             )}
           </div>
+
+          {/* Destination Autocomplete Dropdown */}
+          {showDestDropdown && destSuggestions.length > 0 && (
+            <div className="autocomplete-dropdown" role="listbox">
+              {destSuggestions.map((loc, idx) => (
+                <div
+                  key={idx}
+                  className={`autocomplete-item ${idx === destSelectedIndex ? 'is-selected' : ''}`}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelectDest(loc);
+                  }}
+                  role="option"
+                  aria-selected={idx === destSelectedIndex}
+                >
+                  <div className="autocomplete-title">
+                    <div className="d-flex align-items-center gap-1.5 text-truncate">
+                      <MapPin size={13} color="#ef4444" className="flex-shrink-0" />
+                      <span className="text-truncate">{loc.name}</span>
+                    </div>
+                    {loc.isJunction && (
+                      <span
+                        className="badge font-monospace flex-shrink-0"
+                        style={{
+                          fontSize: '0.62rem',
+                          background: 'rgba(239, 68, 68, 0.2)',
+                          color: '#f87171',
+                          border: '1px solid rgba(239, 68, 68, 0.4)'
+                        }}
+                      >
+                        ⚡ Junction
+                      </span>
+                    )}
+                  </div>
+                  <div className="autocomplete-sub">
+                    <span>{loc.municipality || 'Tiruchirappalli'}{loc.country ? `, ${loc.country}` : ''}</span>
+                    <span className="autocomplete-coord">{loc.lat.toFixed(4)}, {loc.lng.toFixed(4)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Quick Presets */}
-        <div className="mb-3">
-          <span className="d-block mb-1 fw-semibold" style={{ fontSize: '0.74rem', color: '#cbd5e1' }}>
-            Quick Route Presets:
-          </span>
-          <div className="d-flex flex-wrap gap-1.5">
+        {/* Map Click Guidance Helper */}
+        <div className="mb-3 d-flex align-items-center gap-1.5 text-muted" style={{ fontSize: '0.70rem' }}>
+          <Sparkles size={12} color="#38bdf8" />
+          <span>Click anywhere on the map to set Origin (A) or Destination (B).</span>
+        </div>
+
+        {/* Quick Presets & Junction Points (Compact) */}
+        <div className="mb-2.5">
+          <div className="d-flex align-items-center justify-content-between mb-1">
+            <span className="fw-semibold d-flex align-items-center gap-1" style={{ fontSize: '0.70rem', color: '#94a3b8' }}>
+              <Navigation size={11} color="#38bdf8" />
+              <span>Trichy Corridor Presets:</span>
+            </span>
+          </div>
+
+          <div className="d-flex flex-wrap gap-1 mb-2">
             {PRESETS.map((p, idx) => (
               <button
                 key={idx}
                 type="button"
                 className="glass-preset-pill"
                 onClick={() => handlePreset(p)}
-                disabled={loading}
+                title={`${p.label} (${p.tag})`}
               >
-                {p.label}
+                {p.shortLabel || p.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="d-flex align-items-center justify-content-between mb-1">
+            <span className="fw-semibold d-flex align-items-center gap-1" style={{ fontSize: '0.68rem', color: '#64748b' }}>
+              <Sparkles size={10} color="#38bdf8" />
+              <span>Junction Hotspots (Click to set):</span>
+            </span>
+          </div>
+
+          <div className="d-flex flex-wrap gap-1">
+            {TRICHY_JUNCTIONS.map((j, idx) => (
+              <button
+                key={idx}
+                type="button"
+                className="junction-chip"
+                onClick={() => handleQuickJunction(j.name)}
+                title={`Click to set ${j.name}`}
+              >
+                + {j.short}
               </button>
             ))}
           </div>
         </div>
+
+        {/* Real-time Guidance Banner */}
+        {(!inputSource.trim() || !inputDest.trim()) ? (
+          <div
+            className="mb-2 p-2 rounded-2 d-flex align-items-center gap-2"
+            style={{
+              background: 'rgba(56, 189, 248, 0.08)',
+              border: '1px dashed rgba(56, 189, 248, 0.25)',
+              fontSize: '0.72rem',
+              color: '#94a3b8'
+            }}
+          >
+            <Sparkles size={13} color="#38bdf8" className="flex-shrink-0" />
+            <span>
+              {!inputSource.trim() && !inputDest.trim()
+                ? 'Select a Trichy preset above or type Origin (A) & Destination (B) to rank routes.'
+                : !inputSource.trim()
+                ? 'Enter or select an Origin (A) location to continue.'
+                : 'Enter or select a Destination (B) location to rank live alternatives.'}
+            </span>
+          </div>
+        ) : (
+          <div
+            className="mb-2 p-1.5 rounded-2 d-flex align-items-center gap-2"
+            style={{
+              background: 'rgba(34, 197, 94, 0.1)',
+              border: '1px solid rgba(34, 197, 94, 0.25)',
+              fontSize: '0.72rem',
+              color: '#86efac'
+            }}
+          >
+            <CheckCircle2 size={13} color="#22c55e" className="flex-shrink-0" />
+            <span>Ready to evaluate live multi-criteria routes with TomTom & AI forecasting.</span>
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div className="d-grid gap-2 mb-3">
           <button
             type="submit"
             className="btn glass-btn-primary d-flex align-items-center justify-content-center gap-2 py-2"
-            disabled={loading || !source.trim() || !destination.trim()}
+            disabled={loading || !inputSource.trim() || !inputDest.trim()}
           >
             {loading ? (
               <>
@@ -187,9 +681,7 @@ export default function RouteSearchForm({
               </>
             ) : (
               <>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="3 11 22 2 13 21 11 13 3 11"/>
-                </svg>
+                <Search size={15} />
                 <span>Find & Rank Best Route</span>
               </>
             )}
@@ -209,9 +701,7 @@ export default function RouteSearchForm({
                 </>
               ) : (
                 <>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-                  </svg>
+                  <RefreshCw size={13} />
                   <span>Refresh Traffic Now</span>
                 </>
               )}
@@ -258,85 +748,93 @@ export default function RouteSearchForm({
         <div className="mt-2 text-center">
           <button
             type="button"
-            className="btn btn-link btn-sm text-decoration-none p-0 fw-semibold"
+            className="btn btn-link btn-sm text-decoration-none p-0 fw-semibold d-inline-flex align-items-center gap-1"
             style={{ fontSize: '0.74rem', color: '#38bdf8' }}
             onClick={() => setShowWeights(!showWeights)}
           >
-            {showWeights ? '▲ Hide Ranking Weights' : '⚙ Customize Criteria Weights'}
+            <SlidersHorizontal size={12} />
+            <span>{showWeights ? 'Hide Ranking Weights' : 'Customize Criteria Weights'}</span>
           </button>
         </div>
 
         {/* Collapsible Weights Sliders */}
-        {showWeights && (
-          <div
-            className="mt-2 p-3 rounded-3"
-            style={{
-              background: 'rgba(14, 14, 18, 0.95)',
-              border: '1px solid rgba(255, 255, 255, 0.12)'
-            }}
-          >
-            <div className="d-flex justify-content-between align-items-center mb-2">
-              <span className="small text-white fw-semibold">Multi-Criteria Weights</span>
-              <span
-                className="badge font-monospace"
-                style={{ fontSize: '0.65rem', background: 'rgba(255, 255, 255, 0.12)', color: '#e2e8f0' }}
-              >
-                Normalized
-              </span>
-            </div>
+        {showWeights && (() => {
+          const totalW = ((weights.weightTime || 0) + (weights.weightDelay || 0) + (weights.weightDistance || 0)) || 1.0;
+          const effTime = Math.round(((weights.weightTime || 0) / totalW) * 100);
+          const effDelay = Math.round(((weights.weightDelay || 0) / totalW) * 100);
+          const effDist = Math.max(0, 100 - effTime - effDelay);
 
-            {/* Travel Time Weight */}
-            <div className="mb-2">
-              <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.74rem', color: '#e2e8f0' }}>
-                <span className="fw-medium">Travel Time</span>
-                <span className="text-info fw-bold font-monospace">{Math.round(weights.weightTime * 100)}%</span>
+          return (
+            <div
+              className="mt-2 p-3 rounded-3"
+              style={{
+                background: 'rgba(14, 14, 18, 0.95)',
+                border: '1px solid rgba(255, 255, 255, 0.12)'
+              }}
+            >
+              <div className="d-flex justify-content-between align-items-center mb-2">
+                <span className="small text-white fw-semibold">Multi-Criteria Weights</span>
+                <span
+                  className="badge font-monospace"
+                  style={{ fontSize: '0.65rem', background: 'rgba(255, 255, 255, 0.12)', color: '#e2e8f0' }}
+                >
+                  Normalized (100%)
+                </span>
               </div>
-              <input
-                type="range"
-                className="form-range"
-                min="0.1"
-                max="0.8"
-                step="0.05"
-                value={weights.weightTime}
-                onChange={(e) => setWeights({ ...weights, weightTime: parseFloat(e.target.value) })}
-              />
-            </div>
 
-            {/* Traffic Delay Weight */}
-            <div className="mb-2">
-              <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.74rem', color: '#e2e8f0' }}>
-                <span className="fw-medium">Traffic Congestion Delay</span>
-                <span className="text-warning fw-bold font-monospace">{Math.round(weights.weightDelay * 100)}%</span>
+              {/* Travel Time Weight */}
+              <div className="mb-2">
+                <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.74rem', color: '#e2e8f0' }}>
+                  <span className="fw-medium">Travel Time</span>
+                  <span className="text-info fw-bold font-monospace">{effTime}%</span>
+                </div>
+                <input
+                  type="range"
+                  className="form-range"
+                  min="0.1"
+                  max="0.8"
+                  step="0.05"
+                  value={weights.weightTime}
+                  onChange={(e) => setWeights({ ...weights, weightTime: parseFloat(e.target.value) })}
+                />
               </div>
-              <input
-                type="range"
-                className="form-range"
-                min="0.1"
-                max="0.8"
-                step="0.05"
-                value={weights.weightDelay}
-                onChange={(e) => setWeights({ ...weights, weightDelay: parseFloat(e.target.value) })}
-              />
-            </div>
 
-            {/* Distance Weight */}
-            <div>
-              <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.74rem', color: '#e2e8f0' }}>
-                <span className="fw-medium">Geographic Distance</span>
-                <span className="text-success fw-bold font-monospace">{Math.round(weights.weightDistance * 100)}%</span>
+              {/* Traffic Delay Weight */}
+              <div className="mb-2">
+                <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.74rem', color: '#e2e8f0' }}>
+                  <span className="fw-medium">Traffic Congestion Delay</span>
+                  <span className="text-warning fw-bold font-monospace">{effDelay}%</span>
+                </div>
+                <input
+                  type="range"
+                  className="form-range"
+                  min="0.1"
+                  max="0.8"
+                  step="0.05"
+                  value={weights.weightDelay}
+                  onChange={(e) => setWeights({ ...weights, weightDelay: parseFloat(e.target.value) })}
+                />
               </div>
-              <input
-                type="range"
-                className="form-range"
-                min="0.1"
-                max="0.8"
-                step="0.05"
-                value={weights.weightDistance}
-                onChange={(e) => setWeights({ ...weights, weightDistance: parseFloat(e.target.value) })}
-              />
+
+              {/* Distance Weight */}
+              <div>
+                <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.74rem', color: '#e2e8f0' }}>
+                  <span className="fw-medium">Geographic Distance</span>
+                  <span className="text-success fw-bold font-monospace">{effDist}%</span>
+                </div>
+                <input
+                  type="range"
+                  className="form-range"
+                  min="0.1"
+                  max="0.8"
+                  step="0.05"
+                  value={weights.weightDistance}
+                  onChange={(e) => setWeights({ ...weights, weightDistance: parseFloat(e.target.value) })}
+                />
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </form>
     </div>
   );

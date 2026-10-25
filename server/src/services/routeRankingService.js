@@ -4,291 +4,336 @@ const { classifyTrafficSeverity } = require('./trafficSeverityService');
 /**
  * Route Ranking Engine
  * 
- * Evaluates candidate routes using a multi-criteria cost function:
- *   Normalized Cost = (w_time * norm_time) + (w_delay * norm_delay) + (w_dist * norm_dist)
- * 
- * Lower overall cost translates to a higher ranking (Rank #1 is the Recommended Route).
- * 
- * Implementation Note:
- * This algorithm is a transparent, deterministic multi-criteria baseline ranking model.
- * It does not use pseudo-random outputs or claim unverified ML model inferences.
+ * Implements Section 5 of RouteWise Implementation Change Specification:
+ * 1. Base candidate ETAs reflect provider travel time (which already incorporates traffic delay).
+ * 2. Verified incidents not yet reflected in provider ETA add one documented adjustment to affected routes.
+ * 3. Candidate routes are ranked primarily by Adjusted ETA (earlier arrival).
+ *    Congestion ratio and distance act as transparent tie-breakers.
+ * 4. Switch Threshold: An alternative route is recommended over the main route ONLY when:
+ *      timeSaved >= max(180 seconds [3 mins], 10% of main route ETA)
+ *    Otherwise, Route 1 (main route) remains recommended to avoid frivolous switching.
+ * 5. Unverified community reports are kept separate and explicitly disclaimed.
  */
 
 function minMaxNormalize(values) {
   const min = Math.min(...values);
   const max = Math.max(...values);
   if (min === max) {
-    // If all alternatives have identical values, normalized cost is equal
-    return values.map(() => 0.5);
+    return values.map(() => 0.0);
   }
   return values.map(v => (v - min) / (max - min));
 }
 
-function rankRoutes(rawRoutes, customWeights = {}) {
+function rankRoutes(rawRoutes, optionsOrWeights = {}) {
+  // Support both legacy rankRoutes(routes, weights) and rankRoutes(routes, { customWeights, verifiedIncidents, unverifiedReports })
+  let customWeights = {};
+  let verifiedIncidents = [];
+  let unverifiedReports = [];
+
+  if (optionsOrWeights && typeof optionsOrWeights === 'object') {
+    if (optionsOrWeights.customWeights || optionsOrWeights.verifiedIncidents || optionsOrWeights.unverifiedReports) {
+      customWeights = optionsOrWeights.customWeights || {};
+      verifiedIncidents = Array.isArray(optionsOrWeights.verifiedIncidents) ? optionsOrWeights.verifiedIncidents : [];
+      unverifiedReports = Array.isArray(optionsOrWeights.unverifiedReports) ? optionsOrWeights.unverifiedReports : [];
+    } else {
+      customWeights = optionsOrWeights;
+    }
+  }
+
+  const unverifiedDisclaimer = (unverifiedReports && unverifiedReports.length > 0)
+    ? 'Unverified community reports are displayed for informational awareness only and did not determine the route recommendation.'
+    : '';
+
   if (!Array.isArray(rawRoutes) || rawRoutes.length === 0) {
     return {
       recommendedRouteId: null,
-      routes: []
+      routes: [],
+      switchThreshold: {
+        thresholdSeconds: 0,
+        timeSavedSeconds: 0,
+        switched: false,
+        reason: 'No routes available.'
+      },
+      unverifiedReports,
+      unverifiedDisclaimer
     };
   }
 
   // Handle single route directly
   if (rawRoutes.length === 1) {
     const route = rawRoutes[0];
-    const duration = Number(route.estimatedDurationSeconds) || 0;
-    const delay = Number(route.trafficDelaySeconds) || 0;
-    const distance = Number(route.distanceMeters) || 0;
-    const trafficInfo = classifyTrafficSeverity(duration, delay);
+    const duration = Math.max(0, Number(route.estimatedDurationSeconds) || 0);
+    const delay = Math.max(0, Number(route.trafficDelaySeconds) || 0);
+    const distance = Math.max(0, Number(route.distanceMeters) || 0);
+    const routeId = route.id || 'route-1';
+
+    let unreflectedIncidentDelay = 0;
+    const incidentsApplied = [];
+    if (Array.isArray(verifiedIncidents)) {
+      for (const inc of verifiedIncidents) {
+        const affects = !inc.affectsRouteIds || inc.affectsRouteIds.includes(routeId);
+        if (affects && !inc.alreadyReflectedInProvider) {
+          const impactSec = Math.max(0, (Number(inc.estimatedImpactMinutes) || 0) * 60);
+          unreflectedIncidentDelay += impactSec;
+          incidentsApplied.push({ ...inc, impactSeconds: impactSec });
+        }
+      }
+    }
+
+    const adjustedDuration = duration + unreflectedIncidentDelay;
+    const trafficInfo = classifyTrafficSeverity(adjustedDuration, delay + unreflectedIncidentDelay);
 
     return {
-      recommendedRouteId: route.id || 'route-1',
+      recommendedRouteId: routeId,
+      switchThreshold: {
+        thresholdSeconds: 0,
+        timeSavedSeconds: 0,
+        switched: false,
+        reason: 'Sole available route; switch threshold does not apply.'
+      },
+      unverifiedReports,
+      unverifiedDisclaimer,
       routes: [{
         ...route,
-        id: route.id || 'route-1',
+        id: routeId,
         rank: 1,
         isRecommended: true,
-        rankingScore: 100, // perfect score as only choice
+        rankingScore: 100,
         costScore: 0,
         trafficSeverity: trafficInfo.severity,
         trafficColor: trafficInfo.color,
         trafficLabel: trafficInfo.label,
+        distanceMeters: distance,
+        estimatedDurationSeconds: duration,
+        adjustedDurationSeconds: adjustedDuration,
+        incidentDelayAppliedSeconds: unreflectedIncidentDelay,
+        incidentsApplied,
         trafficDelaySeconds: delay,
         recommendationReasons: [
           'Sole available driving route returned by routing provider',
-          `${Math.round(distance / 1000)} km total distance (${Math.round(duration / 60)} mins estimated)`
+          `${Math.round(distance / 1000)} km total distance (${Math.round(adjustedDuration / 60)} mins estimated)`
         ],
         geometry: Array.isArray(route.geometry) ? route.geometry : []
       }]
     };
   }
 
-  // Resolve weights (fall back to server config)
-  const wTime = customWeights.weightTime ?? config.ranking.weightTime;
-  const wDelay = customWeights.weightDelay ?? config.ranking.weightDelay;
-  const wDist = customWeights.weightDistance ?? config.ranking.weightDistance;
+  // 1. Process candidate routes and apply verified incidents
+  const preparedRoutes = rawRoutes.map((route, idx) => {
+    const duration = Math.max(0, Number(route.estimatedDurationSeconds) || 0);
+    const delay = Math.max(0, Number(route.trafficDelaySeconds) || 0);
+    const distance = Math.max(0, Number(route.distanceMeters) || 0);
+    const routeId = route.id || `route-${idx + 1}`;
+    const isMain = route.isMainRoute === true || (idx === 0 && !rawRoutes.some(r => r.isMainRoute));
 
-  // Normalize weights so they sum to 1.0
-  const totalWeight = (wTime + wDelay + wDist) || 1.0;
-  const weightTime = wTime / totalWeight;
-  const weightDelay = wDelay / totalWeight;
-  const weightDist = wDist / totalWeight;
+    let unreflectedIncidentDelay = 0;
+    const incidentsApplied = [];
+    if (Array.isArray(verifiedIncidents)) {
+      for (const inc of verifiedIncidents) {
+        const affects = !inc.affectsRouteIds || inc.affectsRouteIds.includes(routeId);
+        if (affects && !inc.alreadyReflectedInProvider) {
+          const impactSec = Math.max(0, (Number(inc.estimatedImpactMinutes) || 0) * 60);
+          unreflectedIncidentDelay += impactSec;
+          incidentsApplied.push({ ...inc, impactSeconds: impactSec });
+        }
+      }
+    }
 
-  // Extract raw arrays for normalization
-  const times = rawRoutes.map(r => Math.max(0, Number(r.estimatedDurationSeconds) || 0));
-  const delays = rawRoutes.map(r => Math.max(0, Number(r.trafficDelaySeconds) || 0));
-  const distances = rawRoutes.map(r => Math.max(0, Number(r.distanceMeters) || 0));
-
-  const normTimes = minMaxNormalize(times);
-  const normDelays = minMaxNormalize(delays);
-  const normDistances = minMaxNormalize(distances);
-
-  // Compute composite cost for each candidate
-  const scoredRoutes = rawRoutes.map((route, idx) => {
-    const duration = times[idx];
-    const delay = delays[idx];
-    const distance = distances[idx];
-    const trafficInfo = classifyTrafficSeverity(duration, delay);
-
-    // Composite cost: lower is better (0.0 = best possible among alternatives, 1.0 = worst)
-    const cost = (normTimes[idx] * weightTime) +
-                 (normDelays[idx] * weightDelay) +
-                 (normDistances[idx] * weightDist);
-
-    // Convert cost to 0-100 ranking score where 100 is best
-    const rankingScore = Math.round((1 - cost) * 100);
+    const adjustedDuration = duration + unreflectedIncidentDelay;
+    const congestionRatio = adjustedDuration > 0 ? (delay / adjustedDuration) : 0;
+    const trafficInfo = classifyTrafficSeverity(adjustedDuration, delay + unreflectedIncidentDelay);
 
     return {
       ...route,
-      id: route.id || `route-${idx + 1}`,
+      id: routeId,
+      isMainRoute: isMain,
       distanceMeters: distance,
       estimatedDurationSeconds: duration,
+      adjustedDurationSeconds: adjustedDuration,
+      incidentDelayAppliedSeconds: unreflectedIncidentDelay,
+      incidentsApplied,
       trafficDelaySeconds: delay,
+      congestionRatio,
       trafficSeverity: trafficInfo.severity,
       trafficColor: trafficInfo.color,
       trafficLabel: trafficInfo.label,
-      costScore: Number(cost.toFixed(4)),
-      rankingScore,
       rawMetrics: {
-        durationMins: Math.round(duration / 60),
+        durationMins: Math.round(adjustedDuration / 60),
+        providerDurationMins: Math.round(duration / 60),
         delayMins: Math.round(delay / 60),
         distanceKm: Number((distance / 1000).toFixed(1))
       }
     };
   });
 
-  // Sort primarily by lowest cost score (asc), secondarily by lowest duration, tertiarily by lowest distance
-  scoredRoutes.sort((a, b) => {
-    if (a.costScore !== b.costScore) {
-      return a.costScore - b.costScore;
+  // 2. Sort candidate routes by Adjusted ETA (lowest arrival time is best)
+  // Tie-breakers: lower congestion ratio, then shorter distance
+  preparedRoutes.sort((a, b) => {
+    if (a.adjustedDurationSeconds !== b.adjustedDurationSeconds) {
+      return a.adjustedDurationSeconds - b.adjustedDurationSeconds;
     }
-    if (a.estimatedDurationSeconds !== b.estimatedDurationSeconds) {
-      return a.estimatedDurationSeconds - b.estimatedDurationSeconds;
+    if (a.congestionRatio !== b.congestionRatio) {
+      return a.congestionRatio - b.congestionRatio;
     }
     return a.distanceMeters - b.distanceMeters;
   });
 
-  // Assign ranks, recommendation flags, and detailed explanations
-  const minDuration = Math.min(...times);
-  const minDelay = Math.min(...delays);
-  const minDistance = Math.min(...distances);
+  // 3. Compute normalized AI ranking scores (0-100)
+  const minDuration = preparedRoutes[0].adjustedDurationSeconds;
+  const maxDuration = Math.max(...preparedRoutes.map(r => r.adjustedDurationSeconds));
+  const durRange = maxDuration - minDuration || 1;
 
-  const topRoute = scoredRoutes[0];
-  const topDuration = topRoute.estimatedDurationSeconds;
-  const topDistance = topRoute.distanceMeters;
-  const topDelay = topRoute.trafficDelaySeconds;
+  preparedRoutes.forEach((r) => {
+    const timePenalty = ((r.adjustedDurationSeconds - minDuration) / durRange) * 35;
+    const congestionPenalty = Math.min(25, r.congestionRatio * 40);
+    const score = Math.max(10, Math.min(100, Math.round(100 - timePenalty - congestionPenalty)));
+    r.rankingScore = score;
+    r.costScore = Number(((r.adjustedDurationSeconds - minDuration) / 60).toFixed(2));
+  });
 
-  const rankedRoutes = scoredRoutes.map((route, rankIdx) => {
-    const isRecommended = rankIdx === 0;
+  // 4. Switch Threshold Evaluation (Section 5.5)
+  const mainRoute = preparedRoutes.find(r => r.isMainRoute) || preparedRoutes[0];
+  const fastestRoute = preparedRoutes[0];
+
+  const mainDuration = mainRoute.adjustedDurationSeconds;
+  // Threshold: max(3 minutes [180s], 10% of main route duration)
+  const switchThresholdSeconds = Math.max(180, Math.round(0.10 * mainDuration));
+  const timeSavedSeconds = mainDuration - fastestRoute.adjustedDurationSeconds;
+
+  let recommendedRouteId;
+  let switchThresholdInfo;
+
+  if (fastestRoute.id === mainRoute.id) {
+    recommendedRouteId = mainRoute.id;
+    switchThresholdInfo = {
+      thresholdSeconds: switchThresholdSeconds,
+      timeSavedSeconds: 0,
+      switched: false,
+      reason: 'Main route is already the fastest path with direct arterial corridor flow.'
+    };
+  } else {
+    // Alternative is faster: check if it clears switchThresholdSeconds
+    if (timeSavedSeconds >= switchThresholdSeconds) {
+      recommendedRouteId = fastestRoute.id;
+      const timeSavedMins = Math.round(timeSavedSeconds / 60);
+      const threshMins = Math.round(switchThresholdSeconds / 60);
+      const pctSaved = Math.round((timeSavedSeconds / mainDuration) * 100);
+      switchThresholdInfo = {
+        thresholdSeconds: switchThresholdSeconds,
+        timeSavedSeconds,
+        switched: true,
+        reason: `Alternative corridor clears the switch threshold of ${threshMins}m (saves ${timeSavedMins}m, ${pctSaved}% of travel time).`
+      };
+    } else {
+      // Below threshold: Route 1 remains recommended
+      recommendedRouteId = mainRoute.id;
+      const timeSavedMins = Math.round(timeSavedSeconds / 60);
+      const threshMins = Math.round(switchThresholdSeconds / 60);
+      switchThresholdInfo = {
+        thresholdSeconds: switchThresholdSeconds,
+        timeSavedSeconds,
+        switched: false,
+        reason: `Alternative corridor saves only ${timeSavedMins}m (${timeSavedSeconds}s), which does not clear the ${threshMins}m stability threshold. Main route remains recommended.`
+      };
+    }
+  }
+
+  // 5. Generate ranks, recommendation flags, and detailed comparison explanations
+  const rankedRoutes = preparedRoutes.map((route, rankIdx) => {
+    const isRecommended = (route.id === recommendedRouteId);
     const reasons = [];
     let comparisonSummary = '';
     let comparisonBadge = '';
 
-    const durMins = Math.round(route.estimatedDurationSeconds / 60);
+    const durMins = Math.round(route.adjustedDurationSeconds / 60);
     const distKm = Number((route.distanceMeters / 1000).toFixed(1));
     const delayMins = Math.round(route.trafficDelaySeconds / 60);
 
-    const topDurMins = Math.round(topDuration / 60);
-    const topDistKm = Number((topDistance / 1000).toFixed(1));
-    const topDelayMins = Math.round(topDelay / 60);
+    const mainDurMins = Math.round(mainRoute.adjustedDurationSeconds / 60);
+    const mainDistKm = Number((mainRoute.distanceMeters / 1000).toFixed(1));
+    const mainDelayMins = Math.round(mainRoute.trafficDelaySeconds / 60);
 
     if (isRecommended) {
-      comparisonBadge = '★ Why #1 Pick';
-      const alt2 = scoredRoutes[1];
-      const alt3 = scoredRoutes[2];
+      comparisonBadge = route.isMainRoute ? '★ #1 Main Route' : '★ #1 Recommended Alternative';
 
-      if (alt2) {
-        const alt2DurMins = Math.round(alt2.estimatedDurationSeconds / 60);
-        const alt2DistKm = Number((alt2.distanceMeters / 1000).toFixed(1));
-        const alt2DelayMins = Math.round(alt2.trafficDelaySeconds / 60);
-
-        const timeSavedVs2 = alt2DurMins - topDurMins;
-        const distSavedVs2 = Number((alt2DistKm - topDistKm).toFixed(1));
-        const delayAvoidedVs2 = alt2DelayMins - topDelayMins;
-
-        if (timeSavedVs2 > 0 && distSavedVs2 > 0) {
-          reasons.push(`Saves ${timeSavedVs2} mins travel time and ${distSavedVs2} km shorter distance than Route #2`);
-        } else {
-          if (timeSavedVs2 > 0) {
-            reasons.push(`${timeSavedVs2} mins faster arrival than Route #2`);
-          }
-          if (distSavedVs2 > 0) {
-            reasons.push(`${distSavedVs2} km shorter driving distance than Route #2`);
-          } else if (distSavedVs2 < 0 && delayAvoidedVs2 >= 3) {
-            reasons.push(`+${Math.abs(distSavedVs2)} km detour to bypass severe traffic gridlock`);
-          }
+      if (switchThresholdInfo.switched && route.id !== mainRoute.id) {
+        const timeSavedMins = Math.round(switchThresholdInfo.timeSavedSeconds / 60);
+        const distDiff = Number((distKm - mainDistKm).toFixed(1));
+        reasons.push(`Saves ${timeSavedMins} mins travel time (> ${Math.round(switchThresholdInfo.thresholdSeconds / 60)}m threshold) vs Route 1`);
+        if (distDiff > 0) {
+          reasons.push(`+${distDiff} km detour to bypass severe traffic on Route 1`);
+        } else if (distDiff < 0) {
+          reasons.push(`${Math.abs(distDiff)} km shorter driving distance than Route 1`);
         }
-
-        if (delayAvoidedVs2 >= 2) {
-          reasons.push(`Avoids ${delayAvoidedVs2} mins of traffic congestion compared to Route #2`);
-        }
-
-        if (alt3) {
-          const alt3DurMins = Math.round(alt3.estimatedDurationSeconds / 60);
-          const alt3DistKm = Number((alt3.distanceMeters / 1000).toFixed(1));
-          const timeSavedVs3 = alt3DurMins - topDurMins;
-          const distSavedVs3 = Number((alt3DistKm - topDistKm).toFixed(1));
-          if (timeSavedVs3 > 0) {
-            reasons.push(`${timeSavedVs3} mins faster arrival than Route #3${distSavedVs3 > 0 ? ` & ${distSavedVs3} km shorter` : ''}`);
-          }
-        }
-
-        reasons.push(`Highest overall AI score (${route.rankingScore}/100) balancing travel time, distance, and congestion`);
-
-        // Build one-line comparison summary
-        if (delayAvoidedVs2 >= 3) {
-          comparisonSummary = `Saves ${delayAvoidedVs2}m traffic delay & arrives ${timeSavedVs2 > 0 ? `${timeSavedVs2}m faster` : 'earlier'} vs Alt #2${distSavedVs2 < 0 ? ` (+${Math.abs(distSavedVs2)} km detour)` : ''}`;
-        } else if (timeSavedVs2 > 0 && distSavedVs2 > 0) {
-          const vs3 = alt3 ? ` (${Math.round((alt3.estimatedDurationSeconds - topDuration) / 60)}m faster than #3)` : '';
-          comparisonSummary = `Saves ${timeSavedVs2}m travel time & ${distSavedVs2} km shorter vs Alt #2${vs3}`;
-        } else if (timeSavedVs2 > 0) {
-          comparisonSummary = `${timeSavedVs2}m faster arrival than Alt #2${distSavedVs2 < 0 ? ` (+${Math.abs(distSavedVs2)} km detour)` : ''}`;
-        } else if (distSavedVs2 > 0) {
-          comparisonSummary = `${distSavedVs2} km shorter distance than Alt #2 with equal travel time`;
-        } else {
-          comparisonSummary = `Fastest and most efficient route among all ${scoredRoutes.length} alternatives`;
-        }
+        comparisonSummary = `Saves ${timeSavedMins}m arrival time vs Route 1 (> ${Math.round(switchThresholdInfo.thresholdSeconds / 60)}m stability threshold)`;
+      } else if (!switchThresholdInfo.switched && route.id === mainRoute.id && switchThresholdInfo.timeSavedSeconds > 0) {
+        reasons.push(`Main route remains recommended: Alternative corridor saves only ${Math.round(switchThresholdInfo.timeSavedSeconds / 60)}m (${switchThresholdInfo.timeSavedSeconds}s), which does not clear the ${Math.round(switchThresholdInfo.thresholdSeconds / 60)}m stability threshold`);
+        reasons.push('Direct primary arterial route without detour complications');
+        comparisonSummary = `Main route remains recommended (alternative saves < ${Math.round(switchThresholdInfo.thresholdSeconds / 60)}m switch threshold)`;
       } else {
-        reasons.push('Best overall weighted score balancing duration, congestion, and distance');
-        comparisonSummary = 'Fastest and most efficient route for this journey';
+        reasons.push('Fastest estimated arrival time among all candidate routes');
+        reasons.push(`Direct corridor with optimal arterial flow (${distKm} km, ${durMins} mins)`);
+        comparisonSummary = `Fastest and most efficient route among all candidate corridors`;
       }
 
-      if (reasons.length === 0) {
-        reasons.push('Fastest estimated travel time among all candidate routes');
+      if (route.incidentsApplied.length > 0) {
+        route.incidentsApplied.forEach(inc => {
+          reasons.push(`Reflects verified ${inc.type} (+${Math.round(inc.impactSeconds / 60)}m unreflected delay)`);
+        });
       }
+
+      reasons.push(`AI composite score: ${route.rankingScore}/100`);
     } else {
-      comparisonBadge = rankIdx === 1 ? 'Why Ranked #2' : `Why Ranked #${rankIdx + 1}`;
-      const timeAddedVsTop = durMins - topDurMins;
-      const distDiffVsTop = Number((distKm - topDistKm).toFixed(1));
-      const delayAddedVsTop = delayMins - topDelayMins;
+      comparisonBadge = rankIdx === 0 ? 'Fastest (Below Threshold)' : `Alternative #${rankIdx + 1}`;
 
-      if (timeAddedVsTop > 0 && distDiffVsTop > 0) {
-        reasons.push(`+${timeAddedVsTop} mins longer travel time & +${distDiffVsTop} km additional distance compared to Route #1`);
+      const recRoute = preparedRoutes.find(r => r.id === recommendedRouteId) || preparedRoutes[0];
+      const recDurMins = Math.round(recRoute.adjustedDurationSeconds / 60);
+      const recDistKm = Number((recRoute.distanceMeters / 1000).toFixed(1));
+
+      const timeDiff = durMins - recDurMins;
+      const distDiff = Number((distKm - recDistKm).toFixed(1));
+
+      if (route.id === fastestRoute.id && !switchThresholdInfo.switched) {
+        reasons.push(`Marginally faster by ${switchThresholdInfo.timeSavedSeconds}s (${Math.round(switchThresholdInfo.timeSavedSeconds / 60)}m), but below the ${Math.round(switchThresholdInfo.thresholdSeconds / 60)}m switch threshold`);
+        comparisonSummary = `Saves only ${switchThresholdInfo.timeSavedSeconds}s; does not justify route switch`;
       } else {
-        if (timeAddedVsTop > 0) {
-          reasons.push(`+${timeAddedVsTop} mins longer travel time compared to Route #1`);
+        if (timeDiff > 0) {
+          reasons.push(`+${timeDiff} mins longer travel time than recommended route`);
         }
-        if (distDiffVsTop > 0) {
-          reasons.push(`+${distDiffVsTop} km additional distance compared to Route #1`);
-        } else if (distDiffVsTop < 0) {
-          reasons.push(`${Math.abs(distDiffVsTop)} km shorter distance, but delayed by traffic vs Route #1`);
+        if (distDiff > 0) {
+          reasons.push(`+${distDiff} km longer driving distance`);
+        } else if (distDiff < 0) {
+          reasons.push(`${Math.abs(distDiff)} km shorter distance, but delayed by traffic`);
         }
+        comparisonSummary = `+${Math.max(0, timeDiff)}m arrival delta vs recommended route`;
       }
 
-      if (delayAddedVsTop >= 2) {
-        reasons.push(`+${delayAddedVsTop} mins higher congestion delay compared to Route #1`);
-      }
-
-      // Check relative to other alternatives
-      const otherAlts = scoredRoutes
-        .map((r, i) => ({ ...r, rankNumber: i + 1 }))
-        .filter((_, idx) => idx !== 0 && idx !== rankIdx);
-      let vsOtherText = '';
-      if (otherAlts.length > 0) {
-        const other = otherAlts[0];
-        const otherDurMins = Math.round(other.estimatedDurationSeconds / 60);
-        const diffWithOther = otherDurMins - durMins;
-        if (diffWithOther > 0) {
-          reasons.push(`${diffWithOther} mins faster arrival than Route #${other.rankNumber}`);
-          vsOtherText = ` (but ${diffWithOther}m faster than #${other.rankNumber})`;
-        } else if (diffWithOther < 0) {
-          reasons.push(`${Math.abs(diffWithOther)} mins slower arrival than Route #${other.rankNumber}`);
-          vsOtherText = ` (and ${Math.abs(diffWithOther)}m slower than #${other.rankNumber})`;
-        }
-      }
-
-      // Add contextual role description
-      if (rankIdx === 1) {
-        reasons.push(`Viable secondary bypass option (Score ${route.rankingScore}/100) if Route #1 encounters unexpected congestion`);
-      } else {
-        reasons.push(`Substantial detour corridor (Score ${route.rankingScore}/100); lowest overall route efficiency`);
-      }
-
-      // One line summary
-      if (delayAddedVsTop >= 3) {
-        comparisonSummary = `+${delayAddedVsTop}m more traffic delay than #1, taking +${timeAddedVsTop}m total`;
-      } else if (timeAddedVsTop > 0 && distDiffVsTop > 0) {
-        comparisonSummary = `+${timeAddedVsTop}m longer & +${distDiffVsTop} km extra distance vs #1${vsOtherText}`;
-      } else if (timeAddedVsTop > 0) {
-        comparisonSummary = `+${timeAddedVsTop}m longer travel time than #1 (${distDiffVsTop < 0 ? `${Math.abs(distDiffVsTop)} km shorter` : 'same distance'})`;
-      } else if (distDiffVsTop > 0) {
-        comparisonSummary = `+${distDiffVsTop} km longer distance than #1 with equal travel time`;
-      } else {
-        comparisonSummary = `Viable alternative route with secondary ranking cost`;
+      if (route.incidentsApplied.length > 0) {
+        route.incidentsApplied.forEach(inc => {
+          reasons.push(`Affected by verified ${inc.type} (+${Math.round(inc.impactSeconds / 60)}m unreflected delay)`);
+        });
       }
 
       if (reasons.length === 0) {
-        reasons.push('Viable alternative route with secondary ranking cost');
+        reasons.push(`Viable secondary corridor (Score ${route.rankingScore}/100)`);
       }
     }
 
     return {
       id: route.id,
+      name: route.name || route.summary || (route.isMainRoute ? 'Primary Arterial Route' : `Alternative Route #${rankIdx + 1}`),
+      isMainRoute: route.isMainRoute,
       rank: rankIdx + 1,
       isRecommended,
       rankingScore: route.rankingScore,
+      costScore: route.costScore,
       distanceMeters: route.distanceMeters,
       estimatedDurationSeconds: route.estimatedDurationSeconds,
+      adjustedDurationSeconds: route.adjustedDurationSeconds,
+      incidentDelayAppliedSeconds: route.incidentDelayAppliedSeconds,
+      incidentsApplied: route.incidentsApplied,
       trafficDelaySeconds: route.trafficDelaySeconds,
+      congestionRatio: Number(route.congestionRatio.toFixed(3)),
       trafficSeverity: route.trafficSeverity,
       trafficColor: route.trafficColor,
       trafficLabel: route.trafficLabel,
@@ -300,8 +345,11 @@ function rankRoutes(rawRoutes, customWeights = {}) {
   });
 
   return {
-    recommendedRouteId: rankedRoutes[0]?.id || null,
-    routes: rankedRoutes.slice(0, 3) // Return up to three alternatives
+    recommendedRouteId,
+    switchThreshold: switchThresholdInfo,
+    unverifiedReports,
+    unverifiedDisclaimer,
+    routes: rankedRoutes.slice(0, 3)
   };
 }
 

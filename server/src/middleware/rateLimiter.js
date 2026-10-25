@@ -3,11 +3,28 @@ const { errorResponse } = require('../utils/response');
 
 const requestLog = new Map();
 
+// Evict expired entries to prevent memory leaks over long uptime
+function pruneExpiredEntries(windowStart) {
+  for (const [key, tsList] of requestLog.entries()) {
+    const active = tsList.filter(ts => ts > windowStart);
+    if (active.length === 0) {
+      requestLog.delete(key);
+    } else if (active.length !== tsList.length) {
+      requestLog.set(key, active);
+    }
+  }
+}
+
 function rateLimiter(req, res, next) {
   // Use API key prefix if authenticated, otherwise client IP
   const clientIdentifier = (req.apiKey && req.apiKey.prefix) || req.ip || 'global';
   const now = Date.now();
   const windowStart = now - config.rateLimit.windowMs;
+
+  // Periodic pruning when map exceeds threshold
+  if (requestLog.size > 100) {
+    pruneExpiredEntries(windowStart);
+  }
 
   const timestamps = (requestLog.get(clientIdentifier) || []).filter(ts => ts > windowStart);
 

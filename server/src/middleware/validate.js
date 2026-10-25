@@ -9,15 +9,27 @@ function isValidCoordinate(coord) {
     return !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
   }
   if (typeof coord === 'object') {
-    const lat = Number(coord.lat ?? coord.latitude);
-    const lng = Number(coord.lng ?? coord.longitude ?? coord.lon);
+    let lat = coord.lat ?? coord.latitude;
+    let lng = coord.lng ?? coord.longitude ?? coord.lon;
+
+    if (lat === undefined && coord.coordinates) {
+      lat = coord.coordinates.lat ?? coord.coordinates.latitude;
+      lng = coord.coordinates.lng ?? coord.coordinates.longitude ?? coord.coordinates.lon;
+    }
+    if (lat === undefined && coord.position) {
+      lat = coord.position.lat ?? coord.position.latitude;
+      lng = coord.position.lon ?? coord.position.lng ?? coord.position.longitude;
+    }
+
+    const nLat = Number(lat);
+    const nLng = Number(lng);
     return (
-      !isNaN(lat) &&
-      !isNaN(lng) &&
-      lat >= -90 &&
-      lat <= 90 &&
-      lng >= -180 &&
-      lng <= 180
+      !isNaN(nLat) &&
+      !isNaN(nLng) &&
+      nLat >= -90 &&
+      nLat <= 90 &&
+      nLng >= -180 &&
+      nLng <= 180
     );
   }
   return false;
@@ -27,7 +39,8 @@ function isValidLocationInput(val) {
   if (!val) return false;
   if (typeof val === 'string') {
     const trimmed = val.trim();
-    return trimmed.length >= 2 && trimmed.length <= 100;
+    // Allow valid coordinate strings or freeform location/address names up to 500 characters
+    return trimmed.length >= 2 && trimmed.length <= 500;
   }
   if (typeof val === 'object') {
     return isValidCoordinate(val);
@@ -69,7 +82,7 @@ function validateRouteRequest(req, res, next) {
     return errorResponse(
       res,
       'INVALID_SOURCE',
-      'Source must be a location name (2-100 characters) or valid coordinate object { lat, lng }.',
+      'Source must be a location name (2-500 characters) or valid coordinate object { lat, lng }.',
       400
     );
   }
@@ -78,12 +91,13 @@ function validateRouteRequest(req, res, next) {
     return errorResponse(
       res,
       'INVALID_DESTINATION',
-      'Destination must be a location name (2-100 characters) or valid coordinate object { lat, lng }.',
+      'Destination must be a location name (2-500 characters) or valid coordinate object { lat, lng }.',
       400
     );
   }
 
-  // Prevent identical source and destination
+
+  // Prevent identical source and destination (both strings or both coordinates)
   if (typeof source === 'string' && typeof destination === 'string') {
     if (source.trim().toLowerCase() === destination.trim().toLowerCase()) {
       return errorResponse(
@@ -93,6 +107,28 @@ function validateRouteRequest(req, res, next) {
         400
       );
     }
+  }
+
+  // Check if both are coordinate objects/arrays with identical lat/lng
+  const extractCoord = (val) => {
+    if (typeof val === 'object' && val !== null) {
+      if (Array.isArray(val) && val.length >= 2) return [Number(val[0]), Number(val[1])];
+      const lat = Number(val.lat ?? val.latitude);
+      const lng = Number(val.lng ?? val.longitude ?? val.lon);
+      if (!isNaN(lat) && !isNaN(lng)) return [lat, lng];
+    }
+    return null;
+  };
+
+  const srcCoord = extractCoord(source);
+  const dstCoord = extractCoord(destination);
+  if (srcCoord && dstCoord && srcCoord[0] === dstCoord[0] && srcCoord[1] === dstCoord[1]) {
+    return errorResponse(
+      res,
+      'IDENTICAL_LOCATIONS',
+      'Source and destination coordinates cannot be identical.',
+      400
+    );
   }
 
   next();

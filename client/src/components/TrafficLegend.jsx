@@ -1,4 +1,5 @@
 import React from 'react';
+import { Layers } from 'lucide-react';
 
 export default function TrafficLegend() {
   return (
@@ -15,14 +16,11 @@ export default function TrafficLegend() {
               border: '1px solid rgba(56, 189, 248, 0.4)'
             }}
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-              <polyline points="2 17 12 22 22 17"/>
-              <polyline points="2 12 12 17 22 12"/>
-            </svg>
+            <Layers size={14} color="#38bdf8" />
           </span>
           <span>Traffic Telemetry & Route Tiers</span>
         </h6>
+
         <span className="badge font-monospace" style={{ fontSize: '0.68rem', background: 'rgba(255, 255, 255, 0.08)', color: '#94a3b8' }}>
           Live Legend
         </span>
@@ -99,6 +97,35 @@ export default function TrafficLegend() {
               <span className="rounded-circle d-inline-block" style={{ width: 8, height: 8, backgroundColor: '#ef4444', boxShadow: '0 0 6px #ef4444' }} />
               <span>Dest B</span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Row C: Community Crowd Reports (F4) */}
+      <div className="mt-2">
+        <label className="form-label small text-secondary mb-1 fw-semibold d-flex align-items-center gap-1">
+          <span
+            className="rounded-circle d-inline-flex align-items-center justify-content-center text-white"
+            style={{ width: 18, height: 18, fontSize: '0.65rem', background: '#f43f5e', fontWeight: 'bold' }}
+          >
+            C
+          </span>
+          <span className="text-light">Community Incident Indicators (F4)</span>
+        </label>
+        <div className="card-field-box d-flex flex-wrap align-items-center gap-2">
+          <div className="d-flex align-items-center gap-1.5 px-2 py-1 rounded" style={{ background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)' }}>
+            <span style={{ fontSize: '0.80rem' }}>✓</span>
+            <span className="fw-semibold" style={{ fontSize: '0.70rem', color: '#86efac' }}>Verified (Solid + Pulse)</span>
+          </div>
+
+          <div className="d-flex align-items-center gap-1.5 px-2 py-1 rounded" style={{ background: 'rgba(245, 158, 11, 0.15)', border: '1px dashed rgba(245, 158, 11, 0.5)' }}>
+            <span style={{ fontSize: '0.80rem' }}>?</span>
+            <span style={{ fontSize: '0.70rem', color: '#fde047' }}>Unverified (Dashed Outline)</span>
+          </div>
+
+          <div className="d-flex align-items-center gap-1.5 px-2 py-1 rounded" style={{ background: 'rgba(168, 85, 247, 0.15)', border: '1px solid rgba(168, 85, 247, 0.4)' }}>
+            <span style={{ fontSize: '0.75rem' }}>🔁</span>
+            <span style={{ fontSize: '0.70rem', color: '#d8b4fe' }}>7-Day Recurring</span>
           </div>
         </div>
       </div>

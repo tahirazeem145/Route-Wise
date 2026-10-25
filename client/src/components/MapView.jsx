@@ -1,13 +1,44 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
-import { getTrafficStatus, setTomTomApiKey, removeTomTomApiKey } from '../services/api';
+import {
+  getTrafficStatus,
+  setTomTomApiKey,
+  removeTomTomApiKey,
+  fetchNearbyIncidents,
+  voteOnIncident
+} from '../services/api';
+import { getAnonymousUserKey } from '../utils/userKey';
+
+const TYPE_CONFIG = {
+  congestion: { icon: '🚗', label: 'Traffic Gridlock', color: '#ef4444' },
+  roadblock: { icon: '⛔', label: 'Roadblock', color: '#f97316' },
+  roadwork: { icon: '🚧', label: 'Roadwork', color: '#eab308' },
+  procession: { icon: '👥', label: 'Procession / Rally', color: '#a855f7' },
+  signal_failure: { icon: '🚦', label: 'Signal Failure', color: '#f43f5e' },
+  waterlogging: { icon: '🌊', label: 'Waterlogging', color: '#06b6d4' }
+};
+
+function formatAge(isoString) {
+  if (!isoString) return 'just now';
+  const diffSec = Math.max(0, Math.floor((Date.now() - new Date(isoString).getTime()) / 1000));
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  return `${diffHr}h ago`;
+}
 
 export default function MapView({
   source,
   destination,
   routes,
   selectedRouteId,
-  onSelectRoute
+  onSelectRoute,
+  showTomTomModal,
+  setShowTomTomModal,
+  onSetLocation,
+  onOpenReportModal,
+  incidentRefreshTrigger = 0
 }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -15,18 +46,33 @@ export default function MapView({
   const simulatedHeatmapGroupRef = useRef(null);
   const trafficFlowLayerRef = useRef(null);
   const incidentsLayerRef = useRef(null);
+  const communityIncidentsGroupRef = useRef(null);
   const lastFittedSignatureRef = useRef('');
+  const onSetLocationRef = useRef(onSetLocation);
+  const onOpenReportModalRef = useRef(onOpenReportModal);
+
+  useEffect(() => {
+    onSetLocationRef.current = onSetLocation;
+  }, [onSetLocation]);
+
+  useEffect(() => {
+    onOpenReportModalRef.current = onOpenReportModal;
+  }, [onOpenReportModal]);
 
   // Traffic Heatmap Layer State
   const [showTrafficFlow, setShowTrafficFlow] = useState(true);
   const [showIncidents, setShowIncidents] = useState(true);
+  const [showCommunityReports, setShowCommunityReports] = useState(true);
+  const [communityIncidents, setCommunityIncidents] = useState([]);
   const [trafficOpacity, setTrafficOpacity] = useState(0.85);
   const [showControls, setShowControls] = useState(true);
   const [realKeyConfigured, setRealKeyConfigured] = useState(false);
   const [tileBuster, setTileBuster] = useState(Date.now());
 
-  // Modal State for configuring TomTom Live Key
-  const [showKeyModal, setShowKeyModal] = useState(false);
+  // Modal State for configuring TomTom Live Key (local fallback or parent controlled)
+  const [localShowKeyModal, setLocalShowKeyModal] = useState(false);
+  const showKeyModal = showTomTomModal !== undefined ? showTomTomModal : localShowKeyModal;
+  const setShowKeyModal = setShowTomTomModal || setLocalShowKeyModal;
   const [tomTomKeyInput, setTomTomKeyInput] = useState('');
   const [keyStatusMsg, setKeyStatusMsg] = useState(null);
   const [keyLoading, setKeyLoading] = useState(false);
@@ -57,8 +103,8 @@ export default function MapView({
 
     if (!mapInstanceRef.current) {
       const map = L.map(mapRef.current, {
-        center: [10.7905, 78.7047],
-        zoom: 8,
+        center: [10.8100, 78.6920],
+        zoom: 13,
         minZoom: 3,
         maxZoom: 18,
         zoomControl: true,
@@ -81,7 +127,59 @@ export default function MapView({
       // Dedicated layer groups
       simulatedHeatmapGroupRef.current = L.layerGroup().addTo(map);
       layersGroupRef.current = L.layerGroup().addTo(map);
+      communityIncidentsGroupRef.current = L.layerGroup().addTo(map);
       mapInstanceRef.current = map;
+
+      // Interactive map click listener: Pin location or report incident directly on map
+      map.on('click', (e) => {
+        const { lat, lng } = e.latlng;
+        const latStr = lat.toFixed(5);
+        const lngStr = lng.toFixed(5);
+
+        const container = document.createElement('div');
+        container.style.padding = '4px';
+        container.style.textAlign = 'center';
+        container.innerHTML = `
+          <div style="font-weight: 700; font-size: 0.82rem; margin-bottom: 2px; color: #f8fafc;">
+            📍 Picked Location
+          </div>
+          <div style="font-size: 0.72rem; color: #38bdf8; font-family: monospace; margin-bottom: 8px;">
+            ${latStr}, ${lngStr}
+          </div>
+          <div style="display: flex; gap: 6px; justify-content: center; margin-bottom: 6px;">
+            <button id="set-origin-btn" style="background: #22c55e; border: none; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; cursor: pointer;">
+              Set Origin (A)
+            </button>
+            <button id="set-dest-btn" style="background: #ef4444; border: none; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; cursor: pointer;">
+              Set Dest (B)
+            </button>
+          </div>
+          <button id="report-incident-btn" style="background: linear-gradient(135deg, #ef4444, #dc2626); border: none; color: white; padding: 5px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 4px;">
+            ⚠️ Report Incident Here
+          </button>
+        `;
+
+        L.popup({ minWidth: 175 })
+          .setLatLng(e.latlng)
+          .setContent(container)
+          .openOn(map);
+
+        container.querySelector('#set-origin-btn')?.addEventListener('click', () => {
+          if (onSetLocationRef.current) onSetLocationRef.current('source', `${latStr}, ${lngStr}`);
+          map.closePopup();
+        });
+        container.querySelector('#set-dest-btn')?.addEventListener('click', () => {
+          if (onSetLocationRef.current) onSetLocationRef.current('destination', `${latStr}, ${lngStr}`);
+          map.closePopup();
+        });
+        container.querySelector('#report-incident-btn')?.addEventListener('click', () => {
+          if (onOpenReportModalRef.current) {
+            onOpenReportModalRef.current({ lat, lng });
+          }
+          map.closePopup();
+        });
+      });
+
 
       // Invalidate map size on any container resize to prevent grey tiles, but NOT during zoom animations
       if (typeof ResizeObserver !== 'undefined' && mapRef.current) {
@@ -102,7 +200,6 @@ export default function MapView({
         }, 200);
       };
       window.addEventListener('resize', handleScrollOrResize);
-      window.addEventListener('scroll', handleScrollOrResize, { passive: true });
     }
 
     return () => {
@@ -112,11 +209,11 @@ export default function MapView({
       }
       if (handleScrollOrResize) {
         window.removeEventListener('resize', handleScrollOrResize);
-        window.removeEventListener('scroll', handleScrollOrResize);
       }
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
+        lastFittedSignatureRef.current = ''; // Reset so remounted map in StrictMode fits bounds properly
       }
     };
   }, []);
@@ -290,9 +387,14 @@ export default function MapView({
 
       const srcIcon = L.divIcon({
         className: 'custom-map-pin',
-        html: `<div style="background-color: #22c55e; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.45); font-size: 14px;">A</div>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
+        html: `
+          <div class="radar-beacon" style="width: 36px; height: 36px;">
+            <div class="radar-halo radar-halo-origin"></div>
+            <div style="background: linear-gradient(135deg, #22c55e, #16a34a); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; border: 2.5px solid white; box-shadow: 0 4px 14px rgba(34, 197, 94, 0.6); font-size: 14px; position: relative; z-index: 2;">A</div>
+          </div>
+        `,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
       });
 
       L.marker(srcLatLng, { icon: srcIcon, zIndexOffset: 500 })
@@ -300,22 +402,28 @@ export default function MapView({
         .addTo(group);
     }
 
-    // 2. Add Destination Marker (Red Pin B)
+    // 2. Add Destination Marker (Red Pin B with pulsing radar halo)
     if (destination && destination.coordinates) {
       const dstLatLng = [destination.coordinates.lat, destination.coordinates.lng];
       bounds.extend(dstLatLng);
 
       const dstIcon = L.divIcon({
         className: 'custom-map-pin',
-        html: `<div style="background-color: #ef4444; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.45); font-size: 14px;">B</div>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
+        html: `
+          <div class="radar-beacon" style="width: 36px; height: 36px;">
+            <div class="radar-halo radar-halo-dest"></div>
+            <div style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; border: 2.5px solid white; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.6); font-size: 14px; position: relative; z-index: 2;">B</div>
+          </div>
+        `,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
       });
 
       L.marker(dstLatLng, { icon: dstIcon, zIndexOffset: 500 })
         .bindPopup(`<strong>Destination (B)</strong><br/>${destination.name || 'End Point'}`)
         .addTo(group);
     }
+
 
     // 3. Render Route Polylines with Vivid Traffic Colors
     if (Array.isArray(routes) && routes.length > 0) {
@@ -391,10 +499,10 @@ export default function MapView({
         const badgePt = route.geometry[badgeIdx];
         if (badgePt) {
           let badgeText = '★ #1 Recommended';
-          if (route.rank === 2) {
-            badgeText = `#2 Moderate (+${Math.round(route.trafficDelaySeconds / 60)}m)`;
-          } else if (route.rank === 3) {
-            badgeText = `#3 Heavy (+${Math.round(route.trafficDelaySeconds / 60)}m)`;
+          if (route.rank > 1) {
+            const delayM = Math.round((route.trafficDelaySeconds || 0) / 60);
+            const label = route.trafficLabel || (route.trafficSeverity === 'heavy' ? 'Heavy' : (route.trafficSeverity === 'moderate' ? 'Moderate' : 'Normal'));
+            badgeText = `#${route.rank} ${label}${delayM > 0 ? ` (+${delayM}m)` : ''}`;
           }
 
           const badgeIcon = L.divIcon({
@@ -411,9 +519,34 @@ export default function MapView({
           badgeMarker.addTo(group);
         }
 
+        // Bottleneck radar beacon if significant congestion exists on selected route (> 4 min delay)
+        if (isSelected && (route.trafficDelaySeconds || 0) >= 240 && route.geometry.length > 8) {
+          const bottleneckIdx = Math.floor(route.geometry.length * 0.58);
+          const bottleneckPt = route.geometry[bottleneckIdx];
+          if (bottleneckPt) {
+            const bottleneckIcon = L.divIcon({
+              className: 'custom-bottleneck-pin',
+              html: `
+                <div class="radar-beacon" style="width: 32px; height: 32px;">
+                  <div class="radar-halo radar-halo-bottleneck"></div>
+                  <div style="background: #f59e0b; color: #000; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; border: 2px solid white; box-shadow: 0 0 12px rgba(245, 158, 11, 0.85); font-size: 11px; position: relative; z-index: 2;" title="Bottleneck Corridor">
+                    ⚠️
+                  </div>
+                </div>
+              `,
+              iconSize: [32, 32],
+              iconAnchor: [16, 16]
+            });
+            const bMarker = L.marker(bottleneckPt, { icon: bottleneckIcon, zIndexOffset: 450 });
+            bMarker.bindPopup(`<strong>Active Congestion Bottleneck</strong><br/>Estimated Delay: +${Math.round(route.trafficDelaySeconds / 60)} min<br/>Traffic Status: ${route.trafficLabel || 'Heavy Congestion'}`);
+            bMarker.addTo(group);
+          }
+        }
+
         route.geometry.forEach(pt => bounds.extend(pt));
       });
     }
+
 
     const routeSignature = `${source?.coordinates?.lat || ''},${source?.coordinates?.lng || ''}->${destination?.coordinates?.lat || ''},${destination?.coordinates?.lng || ''}->${routes?.length || 0}`;
     if (bounds.isValid() && lastFittedSignatureRef.current !== routeSignature) {
@@ -421,6 +554,163 @@ export default function MapView({
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
     }
   }, [source, destination, routes, selectedRouteId, onSelectRoute]);
+
+  // Load community incident reports from SQLite database
+  const loadCommunityIncidents = useCallback(async () => {
+    try {
+      let lat = 11.0168;
+      let lng = 76.9660;
+
+      if (routes && routes[0] && Array.isArray(routes[0].geometry) && routes[0].geometry.length > 0) {
+        const midIdx = Math.floor(routes[0].geometry.length / 2);
+        lat = routes[0].geometry[midIdx][0];
+        lng = routes[0].geometry[midIdx][1];
+      } else if (source && source.coordinates) {
+        lat = source.coordinates.lat;
+        lng = source.coordinates.lng;
+      } else if (mapInstanceRef.current) {
+        const c = mapInstanceRef.current.getCenter();
+        lat = c.lat;
+        lng = c.lng;
+      }
+
+      const reports = await fetchNearbyIncidents({ latitude: lat, longitude: lng, radiusM: 100000 });
+      setCommunityIncidents(Array.isArray(reports) ? reports : []);
+    } catch {
+      // Keep existing incidents on network fail
+    }
+  }, [routes, source]);
+
+  useEffect(() => {
+    loadCommunityIncidents();
+  }, [loadCommunityIncidents, incidentRefreshTrigger]);
+
+  // Render Community Incident Markers with Distinct Verified vs Unverified badges & Voting Popups
+  useEffect(() => {
+    const group = communityIncidentsGroupRef.current;
+    if (!group) return;
+
+    group.clearLayers();
+
+    if (!showCommunityReports || !Array.isArray(communityIncidents) || communityIncidents.length === 0) {
+      return;
+    }
+
+    communityIncidents.forEach((item) => {
+      if (item.status === 'cleared') return;
+      if (typeof item.latitude !== 'number' || typeof item.longitude !== 'number') return;
+
+      const cfg = TYPE_CONFIG[item.type] || { icon: '⚠️', label: 'Incident', color: '#ef4444' };
+      const isVerified = item.status === 'verified';
+      const confirmations = item.confirmationCount || 0;
+      const denials = item.denialCount || 0;
+
+      // UX Standard: Never rely on color alone — Verified has solid pulse + checkmark; Unverified has dashed border + question mark
+      const html = isVerified
+        ? `
+          <div class="radar-beacon" style="width: 38px; height: 38px; cursor: pointer;">
+            <div class="radar-halo" style="background: ${cfg.color}44; box-shadow: 0 0 14px ${cfg.color};"></div>
+            <div style="background: linear-gradient(135deg, #1e293b, #0f172a); border: 2.5px solid #22c55e; border-radius: 50%; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; font-size: 16px; position: relative; z-index: 2; box-shadow: 0 4px 14px rgba(0,0,0,0.65);">
+              ${cfg.icon}
+              <div style="position: absolute; top: -4px; right: -4px; background: #22c55e; color: #ffffff; border-radius: 50%; width: 15px; height: 15px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 900; border: 1.5px solid #0f172a;" title="Verified by Community">✓</div>
+            </div>
+          </div>
+        `
+        : `
+          <div style="position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+            <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 2px dashed #f59e0b; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 15px; position: relative; z-index: 2; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+              ${cfg.icon}
+              <div style="position: absolute; top: -4px; right: -4px; background: #f59e0b; color: #000000; border-radius: 50%; width: 15px; height: 15px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; border: 1.5px solid #0f172a;" title="Unverified Commuter Report">?</div>
+            </div>
+          </div>
+        `;
+
+      const icon = L.divIcon({
+        className: 'custom-incident-pin',
+        html,
+        iconSize: [38, 38],
+        iconAnchor: [19, 19]
+      });
+
+      const marker = L.marker([item.latitude, item.longitude], {
+        icon,
+        zIndexOffset: isVerified ? 480 : 380
+      });
+
+      // Interactive popup with one-tap voting
+      const popupDiv = document.createElement('div');
+      popupDiv.style.minWidth = '220px';
+      popupDiv.style.padding = '4px';
+      popupDiv.style.color = '#f8fafc';
+
+      const statusBadge = isVerified
+        ? `<span style="background: rgba(34, 197, 94, 0.2); color: #86efac; border: 1px solid #22c55e; padding: 2px 7px; border-radius: 9999px; font-size: 10px; font-weight: 700;">✓ Verified</span>`
+        : `<span style="background: rgba(245, 158, 11, 0.2); color: #fde047; border: 1px solid #f59e0b; padding: 2px 7px; border-radius: 9999px; font-size: 10px; font-weight: 700;">⏳ Unverified</span>`;
+
+      popupDiv.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px;">
+          <div style="display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 0.85rem; color: #f8fafc;">
+            <span>${cfg.icon}</span>
+            <span>${cfg.label}</span>
+          </div>
+          ${statusBadge}
+        </div>
+        <div style="font-size: 0.72rem; color: #94a3b8; margin-bottom: 4px;">
+          Reported ${formatAge(item.createdAt)} • Source: <span style="color: #38bdf8;">${item.source || 'commuter'}</span>
+        </div>
+        ${item.recurrent ? '<div style="display: inline-block; background: rgba(168, 85, 247, 0.2); color: #d8b4fe; border: 1px solid rgba(168, 85, 247, 0.4); padding: 1px 6px; border-radius: 4px; font-size: 0.68rem; margin-bottom: 6px;">🔁 7-Day Recurrent Hotspot</div>' : ''}
+        ${item.verificationReason ? `<div style="font-size: 0.70rem; color: #34d399; margin-bottom: 4px;">⚡ Verified via ${item.verificationReason}</div>` : ''}
+        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+          <div style="font-size: 0.72rem; color: #cbd5e1; margin-bottom: 6px; font-weight: 600;">
+            Is this condition still active?
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button class="vote-active-btn" style="flex: 1; background: #22c55e; color: #ffffff; border: none; padding: 5px 8px; border-radius: 5px; font-size: 0.72rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
+              👍 Active (${confirmations})
+            </button>
+            <button class="vote-cleared-btn" style="flex: 1; background: rgba(239, 68, 68, 0.85); color: #ffffff; border: none; padding: 5px 8px; border-radius: 5px; font-size: 0.72rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
+              👎 Cleared (${denials})
+            </button>
+          </div>
+          <div class="vote-feedback-msg" style="font-size: 0.70rem; color: #4ade80; margin-top: 5px; display: none; text-align: center;"></div>
+        </div>
+      `;
+
+      const activeBtn = popupDiv.querySelector('.vote-active-btn');
+      const clearedBtn = popupDiv.querySelector('.vote-cleared-btn');
+      const feedbackMsg = popupDiv.querySelector('.vote-feedback-msg');
+
+      const handleVoteAction = async (voteType) => {
+        if (!activeBtn || !clearedBtn || !feedbackMsg) return;
+        activeBtn.disabled = true;
+        clearedBtn.disabled = true;
+        activeBtn.style.opacity = '0.5';
+        clearedBtn.style.opacity = '0.5';
+        feedbackMsg.style.display = 'block';
+        feedbackMsg.innerText = 'Recording vote...';
+
+        try {
+          const userKey = getAnonymousUserKey();
+          const res = await voteOnIncident(item.id, { vote: voteType, anonymousUserKey: userKey });
+          feedbackMsg.innerText = res.status === 'verified'
+            ? '✓ Verified by community consensus!'
+            : '✓ Vote registered!';
+          setTimeout(() => {
+            loadCommunityIncidents();
+          }, 600);
+        } catch (err) {
+          feedbackMsg.style.color = '#f87171';
+          feedbackMsg.innerText = err.message || 'Vote failed.';
+        }
+      };
+
+      activeBtn.addEventListener('click', () => handleVoteAction('upvote'));
+      clearedBtn.addEventListener('click', () => handleVoteAction('downvote'));
+
+      marker.bindPopup(popupDiv);
+      marker.addTo(group);
+    });
+  }, [communityIncidents, showCommunityReports, loadCommunityIncidents]);
 
   // TomTom Key Handlers
   const handleSaveTomTomKey = async () => {
@@ -550,7 +840,7 @@ export default function MapView({
           </label>
         </div>
 
-        <div className="form-check form-switch mb-2">
+        <div className="form-check form-switch mb-1">
           <input
             className="form-check-input"
             type="checkbox"
@@ -561,6 +851,25 @@ export default function MapView({
           />
           <label className="form-check-label" htmlFor="incidentsSwitch" style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
             Bottleneck Warnings
+          </label>
+        </div>
+
+        <div className="form-check form-switch mb-2">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            role="switch"
+            id="communityReportsSwitch"
+            checked={showCommunityReports}
+            onChange={(e) => setShowCommunityReports(e.target.checked)}
+          />
+          <label className="form-check-label d-flex align-items-center justify-content-between" htmlFor="communityReportsSwitch" style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>
+            <span>Community Alerts (F4)</span>
+            {communityIncidents.length > 0 && (
+              <span className="badge rounded-pill bg-danger" style={{ fontSize: '0.62rem', padding: '2px 6px' }}>
+                {communityIncidents.length}
+              </span>
+            )}
           </label>
         </div>
 
@@ -585,7 +894,7 @@ export default function MapView({
 
             <button
               type="button"
-              className="glass-btn-secondary w-100 py-1 d-flex align-items-center justify-content-center gap-1"
+              className="glass-btn-secondary w-100 py-1 d-flex align-items-center justify-content-center gap-1 mb-1.5"
               style={{ fontSize: '0.72rem' }}
               onClick={() => {
                 setKeyStatusMsg(null);
@@ -593,6 +902,30 @@ export default function MapView({
               }}
             >
               <span>⚙️</span> {realKeyConfigured ? 'Update TomTom Key' : 'Connect Live TomTom Key'}
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-sm w-100 py-1 d-flex align-items-center justify-content-center gap-1.5"
+              style={{
+                fontSize: '0.72rem',
+                border: '1px solid rgba(239, 68, 68, 0.45)',
+                background: 'rgba(239, 68, 68, 0.16)',
+                color: '#fca5a5',
+                borderRadius: '8px'
+              }}
+              onClick={() => {
+                if (onOpenReportModalRef.current) {
+                  if (mapInstanceRef.current) {
+                    const c = mapInstanceRef.current.getCenter();
+                    onOpenReportModalRef.current({ lat: c.lat, lng: c.lng });
+                  } else {
+                    onOpenReportModalRef.current();
+                  }
+                }
+              }}
+            >
+              <span>⚠️</span> Report Traffic Incident
             </button>
           </div>
         )}

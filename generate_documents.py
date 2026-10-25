@@ -1,882 +1,1152 @@
 import os
+import shutil
+import pypdf
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, HRFlowable
+)
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+from reportlab.pdfgen import canvas
 import docx
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml import OxmlElement, parse_xml
-from docx.oxml.ns import nsdecls, qn
 
 os.makedirs('MRD', exist_ok=True)
 os.makedirs('PRD', exist_ok=True)
+os.makedirs('client/public', exist_ok=True)
 
 # -------------------------------------------------------------
-# Color definitions matching the screenshot
+# Color definitions & Palette
 # -------------------------------------------------------------
-PRIMARY_BLUE = colors.HexColor('#1e40af')
-LIGHT_BLUE = colors.HexColor('#eff6ff')
-BORDER_BLUE = colors.HexColor('#93c5fd')
-DARK_NAVY = colors.HexColor('#0f172a')
-MUTED_GRAY = colors.HexColor('#64748b')
-TABLE_HEADER_BG = colors.HexColor('#0f172a')
-TABLE_ROW_ALT = colors.HexColor('#f8fafc')
-GREEN_ACCENT = colors.HexColor('#16a34a')
-RED_ACCENT = colors.HexColor('#dc2626')
-AMBER_ACCENT = colors.HexColor('#d97706')
+PRIMARY_NAVY = colors.HexColor('#0f172a')   # Slate 900
+PRIMARY_BLUE = colors.HexColor('#1e40af')   # Blue 800
+ACCENT_BLUE  = colors.HexColor('#2563eb')   # Blue 600
+LIGHT_BLUE   = colors.HexColor('#eff6ff')   # Blue 50
+BORDER_BLUE  = colors.HexColor('#93c5fd')   # Blue 300
+BORDER_MUTED = colors.HexColor('#cbd5e1')   # Slate 300
+MUTED_GRAY   = colors.HexColor('#64748b')   # Slate 500
+DARK_TEXT    = colors.HexColor('#0f172a')   # Slate 900
+ROW_ALT_BG   = colors.HexColor('#f8fafc')   # Slate 50
+GREEN_ACCENT = colors.HexColor('#16a34a')   # Green 600
+LIGHT_GREEN  = colors.HexColor('#f0fdf4')   # Green 50
+BORDER_GREEN = colors.HexColor('#86efac')   # Green 300
+RED_ACCENT   = colors.HexColor('#dc2626')   # Red 600
+AMBER_ACCENT = colors.HexColor('#d97706')   # Amber 600
 
 # -------------------------------------------------------------
-# 1. BUILD PRD PDF (Exact 2-Page Layout)
+# Running Header & Footer Canvas
 # -------------------------------------------------------------
+class MasterNumberedCanvas(canvas.Canvas):
+    def __init__(self, *args, **kwargs):
+        super(MasterNumberedCanvas, self).__init__(*args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self.draw_page_decorations(num_pages)
+            super(MasterNumberedCanvas, self).showPage()
+        super(MasterNumberedCanvas, self).save()
+
+    def draw_page_decorations(self, page_count):
+        self.saveState()
+        self.setFont("Helvetica-Bold", 6.5)
+        self.setFillColor(MUTED_GRAY)
+        
+        # Header (Pages 2 through N)
+        if self._pageNumber > 1:
+            self.drawString(36, 768, "ROUTE WISE (CYBER KNIGHT) — GOLD STANDARD MRD & PRD SPECIFICATION")
+            self.setFont("Helvetica", 6.5)
+            self.drawRightString(576, 768, "JJCET AI-PDLC HACKATHON | 99 AUTOMATED TESTS (100% PASS)")
+            self.setStrokeColor(BORDER_MUTED)
+            self.setLineWidth(0.5)
+            self.line(36, 763, 576, 763)
+        
+        # Footer (All pages)
+        self.setStrokeColor(BORDER_MUTED)
+        self.setLineWidth(0.5)
+        self.line(36, 26, 576, 26)
+        
+        self.setFont("Helvetica", 6.8)
+        self.drawString(36, 17, "Route Wise (SmartRoute AI) — Team Cyber Knight | Production PWA & Express API")
+        page_str = f"Page {self._pageNumber} of {page_count}"
+        self.setFont("Helvetica-Bold", 6.8)
+        self.drawRightString(576, 17, page_str)
+        self.restoreState()
+
+
+class StandaloneNumberedCanvas(canvas.Canvas):
+    def __init__(self, *args, **kwargs):
+        super(StandaloneNumberedCanvas, self).__init__(*args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self.draw_page_decorations(num_pages)
+            super(StandaloneNumberedCanvas, self).showPage()
+        super(StandaloneNumberedCanvas, self).save()
+
+    def draw_page_decorations(self, page_count):
+        self.saveState()
+        self.setFont("Helvetica-Bold", 6.5)
+        self.setFillColor(MUTED_GRAY)
+        
+        # Header (Page 2+)
+        if self._pageNumber > 1:
+            self.drawString(36, 768, "ROUTE WISE (CYBER KNIGHT) — SPECIFICATION DELIVERABLE")
+            self.setFont("Helvetica", 6.5)
+            self.drawRightString(576, 768, "VERIFIED DELIVERABLE (99 TESTS)")
+            self.setStrokeColor(BORDER_MUTED)
+            self.setLineWidth(0.5)
+            self.line(36, 763, 576, 763)
+        
+        # Footer
+        self.setStrokeColor(BORDER_MUTED)
+        self.setLineWidth(0.5)
+        self.line(36, 26, 576, 26)
+        
+        self.setFont("Helvetica", 6.8)
+        self.drawString(36, 17, "Route Wise — Team Cyber Knight | Production Ready")
+        page_str = f"Page {self._pageNumber} of {page_count}"
+        self.setFont("Helvetica-Bold", 6.8)
+        self.drawRightString(576, 17, page_str)
+        self.restoreState()
+
+
+# -------------------------------------------------------------
+# Common ReportLab Typography Styles
+# -------------------------------------------------------------
+styles = getSampleStyleSheet()
+
+title_style = ParagraphStyle(
+    'DocTitle',
+    parent=styles['Normal'],
+    fontName='Helvetica-Bold',
+    fontSize=13,
+    leading=15,
+    textColor=PRIMARY_NAVY
+)
+
+meta_style = ParagraphStyle(
+    'MetaStyle',
+    parent=styles['Normal'],
+    fontName='Helvetica',
+    fontSize=6.5,
+    leading=8.5,
+    alignment=2, # Right
+    textColor=MUTED_GRAY
+)
+
+subtitle_style = ParagraphStyle(
+    'SubTitle',
+    parent=styles['Normal'],
+    fontName='Helvetica-Bold',
+    fontSize=7.5,
+    leading=9.5,
+    textColor=PRIMARY_BLUE
+)
+
+section_h1 = ParagraphStyle(
+    'SecH1',
+    parent=styles['Normal'],
+    fontName='Helvetica-Bold',
+    fontSize=8.5,
+    leading=10.5,
+    textColor=PRIMARY_BLUE,
+    spaceBefore=3,
+    spaceAfter=2,
+    keepWithNext=True
+)
+
+body_text = ParagraphStyle(
+    'BodyTextCustom',
+    parent=styles['Normal'],
+    fontName='Helvetica',
+    fontSize=6.5,
+    leading=8.2,
+    textColor=DARK_TEXT
+)
+
+body_bold = ParagraphStyle(
+    'BodyBoldCustom',
+    parent=styles['Normal'],
+    fontName='Helvetica-Bold',
+    fontSize=6.5,
+    leading=8.2,
+    textColor=DARK_TEXT
+)
+
+tbl_header = ParagraphStyle(
+    'TblHdr',
+    parent=styles['Normal'],
+    fontName='Helvetica-Bold',
+    fontSize=6.2,
+    leading=7.8,
+    textColor=colors.white
+)
+
+tbl_cell = ParagraphStyle(
+    'TblCell',
+    parent=styles['Normal'],
+    fontName='Helvetica',
+    fontSize=6.0,
+    leading=7.4,
+    textColor=DARK_TEXT
+)
+
+tbl_cell_bold = ParagraphStyle(
+    'TblCellBold',
+    parent=styles['Normal'],
+    fontName='Helvetica-Bold',
+    fontSize=6.0,
+    leading=7.4,
+    textColor=DARK_TEXT
+)
+
+badge_p0 = ParagraphStyle(
+    'BadgeP0',
+    parent=styles['Normal'],
+    fontName='Helvetica-Bold',
+    fontSize=5.8,
+    leading=7.0,
+    textColor=colors.HexColor('#0f766e')
+)
+
+badge_p1 = ParagraphStyle(
+    'BadgeP1',
+    parent=styles['Normal'],
+    fontName='Helvetica-Bold',
+    fontSize=5.8,
+    leading=7.0,
+    textColor=PRIMARY_BLUE
+)
+
+badge_p2 = ParagraphStyle(
+    'BadgeP2',
+    parent=styles['Normal'],
+    fontName='Helvetica-Bold',
+    fontSize=5.8,
+    leading=7.0,
+    textColor=MUTED_GRAY
+)
+
+badge_complete = ParagraphStyle(
+    'BadgeComplete',
+    parent=styles['Normal'],
+    fontName='Helvetica-Bold',
+    fontSize=5.8,
+    leading=7.0,
+    textColor=GREEN_ACCENT
+)
+
+
+# =========================================================================
+# REUSABLE FLOWABLE BLOCKS
+# =========================================================================
+
+def get_mrd_page_1():
+    """Builds MRD Page 1 flowables: Title, Pitch, 5-Why Problem, Real Case, Sizing"""
+    story = []
+    
+    # Title & Metadata
+    hdr_table_data = [
+        [
+            Paragraph("<b>Route Wise — Market Requirements Document (MRD)</b>", title_style),
+            Paragraph("<b>DOC:</b> MRD-v2.6-GOLD | <b>TEAM:</b> Cyber Knight<br/><b>STATUS:</b> Approved & Verified (99 Tests)<br/><b>AUDIENCE:</b> Evaluators, Mentors & Judges", meta_style)
+        ]
+    ]
+    hdr_table = Table(hdr_table_data, colWidths=[380, 160])
+    hdr_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+        ('TOPPADDING', (0,0), (-1,-1), 0)
+    ]))
+    story.append(hdr_table)
+    story.append(HRFlowable(width="100%", thickness=1, color=PRIMARY_BLUE, spaceBefore=2, spaceAfter=3))
+
+    # 30-Second Elevator Pitch
+    pitch_text = (
+        "<b>The 30-Second Elevator Pitch:</b> Most navigation apps blindly suggest the shortest route, funneling traffic into severe junction gridlock. "
+        "<b>Route Wise (Team Cyber Knight)</b> is an intelligent traffic advisory platform, live glassmorphic dashboard, and installable PWA. "
+        "It evaluates multiple driving alternatives, penalizes junction bottlenecks using Adjusted ETA with an anti-flapping switch threshold, "
+        "predicts 15-minute trends via public <b>ARIMA (1,0,1)</b> ML, correlates crowd-sourced incidents with TomTom speed-drop telemetry via 2-vote consensus, "
+        "provides municipal authority recurrent hotspot triage, and guarantees corridor retention during 1-tap Google Maps handoff."
+    )
+    pitch_table = Table([[Paragraph(pitch_text, body_text)]], colWidths=[540])
+    pitch_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), LIGHT_BLUE),
+        ('BOX', (0,0), (-1,-1), 0.8, BORDER_BLUE),
+        ('PADDING', (0,0), (-1,-1), 4)
+    ]))
+    story.append(pitch_table)
+    story.append(Spacer(1, 2))
+
+    # 1. Problem Framing & 5-Why Analysis
+    story.append(Paragraph("1. Problem Framing & 5-Why Root Cause Analysis", section_h1))
+    prob_stmt = (
+        "<b>Validated Problem Statement:</b> Daily commuters and couriers face 15-to-30-minute delays at junction bottlenecks in Tier-1/2 Indian cities "
+        "(e.g. Tiruchirappalli), causing missed SLAs, excess fuel burn, and stress. Standard GPS algorithms over-weight physical distance and lack transparent "
+        "trade-off explanations. Therefore, there is an urgent need for an explainable routing system that penalizes junction gridlock and validates crowd alerts."
+    )
+    story.append(Paragraph(prob_stmt, body_text))
+    story.append(Spacer(1, 2))
+
+    five_why_data = [
+        [Paragraph("5-Why Diagnostic Root Cause Tree", tbl_header), Paragraph("Analysis & Evidence", tbl_header)],
+        [Paragraph("<b>1. Why delayed?</b>", tbl_cell_bold), Paragraph("Trapped in bumper-to-bumper junction gridlock during peak hours.", tbl_cell)],
+        [Paragraph("<b>2. Why enter?</b>", tbl_cell_bold), Paragraph("Standard GPS displays the junction route as the shortest path in kilometers.", tbl_cell)],
+        [Paragraph("<b>3. Why shortest?</b>", tbl_cell_bold), Paragraph("Incumbent APIs use opaque black-box weights without customizable junction delay penalties.", tbl_cell)],
+        [Paragraph("<b>4. Why no detour?</b>", tbl_cell_bold), Paragraph("Commuters receive no side-by-side trade-off explanations (e.g. '+2.5 km but 16m faster').", tbl_cell)],
+        [Paragraph("<b>5. Root Cause</b>", tbl_cell_bold), Paragraph("<b>Lack of an explainable engine combining live delay, ML forecasting, and verified crowd alerts.</b>", tbl_cell_bold)]
+    ]
+    t_why = Table(five_why_data, colWidths=[90, 450])
+    t_why.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), PRIMARY_NAVY),
+        ('GRID', (0,0), (-1,-1), 0.5, BORDER_MUTED),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, ROW_ALT_BG]),
+        ('PADDING', (0,0), (-1,-1), 2),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
+    ]))
+    story.append(t_why)
+    story.append(Spacer(1, 3))
+
+    # Real-World Scenario: Trichy Peak Rush Hour
+    story.append(Paragraph("<b>Real-World Validation: Trichy Peak Rush Hour (CBS ⇄ Thillai Nagar across Cantonment)</b>", body_bold))
+    case_data = [
+        [Paragraph("Navigation System", tbl_header), Paragraph("Distance", tbl_header), Paragraph("Junction Delay", tbl_header), Paragraph("Trip Time", tbl_header), Paragraph("Driver & Courier Outcome", tbl_header)],
+        [
+            Paragraph("<b>Standard Navigation App</b><br/>(Shortest distance default)", tbl_cell_bold),
+            Paragraph("10.0 km<br/>(Shortest)", tbl_cell),
+            Paragraph("<font color='#dc2626'><b>+18 mins</b></font><br/>(HPO bottleneck)", tbl_cell),
+            Paragraph("42 mins", tbl_cell_bold),
+            Paragraph("Late delivery, customer SLA breach, high fuel wasted idling in gridlock.", tbl_cell)
+        ],
+        [
+            Paragraph("<b>Route Wise (Cyber Knight)</b><br/>(Adjusted ETA + ARIMA ML)", tbl_cell_bold),
+            Paragraph("12.5 km<br/>(+2.5 km)", tbl_cell),
+            Paragraph("<font color='#16a34a'><b>+2 mins</b></font><br/>(Smooth flowing)", tbl_cell),
+            Paragraph("<font color='#16a34a'><b>26 mins</b></font><br/>(16m faster!)", tbl_cell_bold),
+            Paragraph("On-time delivery, clear trade-off rationale, fuel-efficient constant speed corridor.", tbl_cell)
+        ]
+    ]
+    t_case = Table(case_data, colWidths=[130, 60, 80, 60, 210])
+    t_case.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), PRIMARY_NAVY),
+        ('GRID', (0,0), (-1,-1), 0.5, BORDER_MUTED),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, ROW_ALT_BG]),
+        ('PADDING', (0,0), (-1,-1), 2.5),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
+    ]))
+    story.append(t_case)
+    story.append(Spacer(1, 3))
+
+    # 2. Market Sizing (TAM / SAM / SOM)
+    story.append(Paragraph("2. Market Opportunity & Sizing (Assumptions Explicitly Marked)", section_h1))
+    market_data = [
+        [
+            Paragraph("<b>TAM: $14.2 Billion</b><br/><font color='#64748b'>Global GIS, Navigation & Fleet Logistics API Market (CAGR 12.4%)<br/><i>*Assumption: Worldwide logistics transition to API-driven dispatch.</i></font>", tbl_cell),
+            Paragraph("<b>SAM: $2.8 Billion</b><br/><font color='#64748b'>Urban Last-Mile Delivery & Commuter Routing Software Platforms<br/><i>*Assumption: 20% of urban fleets adopt dynamic junction-avoidance software.</i></font>", tbl_cell),
+            Paragraph("<b>SOM: $350 Million</b><br/><font color='#64748b'>Tier-1 & Tier-2 Indian Logistics Startups, Fleets & Commuters<br/><i>*Assumption: Initial focus on South Indian freight hubs (Trichy, Coimbatore, Chennai).</i></font>", tbl_cell)
+        ]
+    ]
+    t_market = Table(market_data, colWidths=[180, 180, 180])
+    t_market.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), ROW_ALT_BG),
+        ('BOX', (0,0), (-1,-1), 0.8, BORDER_BLUE),
+        ('GRID', (0,0), (-1,-1), 0.5, BORDER_MUTED),
+        ('PADDING', (0,0), (-1,-1), 3.5),
+        ('VALIGN', (0,0), (-1,-1), 'TOP')
+    ]))
+    story.append(t_market)
+
+    return story
+
+
+def get_mrd_page_2():
+    """Builds MRD Page 2 flowables: Personas, Journey, Competitors, Moat, GTM, Risks"""
+    story = []
+    
+    story.append(Paragraph("<b>ROUTE WISE (CYBER KNIGHT) — MARKET REQUIREMENTS (PAGE 2)</b>", subtitle_style))
+    story.append(Spacer(1, 1))
+
+    # 3. Target Personas
+    story.append(Paragraph("3. Target Customer Personas", section_h1))
+    persona_data = [
+        [Paragraph("Persona", tbl_header), Paragraph("Role & Context", tbl_header), Paragraph("Pain Points & Unmet Needs", tbl_header), Paragraph("Route Wise Value Delivered", tbl_header)],
+        [
+            Paragraph("<b>Karthik (26)</b><br/>Commuter / Courier", tbl_cell_bold),
+            Paragraph("On-demand delivery courier & daily 2W commuter in Trichy.", tbl_cell),
+            Paragraph("Stuck at unannounced signal failures; misses strict 8 deliveries/hr SLA.", tbl_cell),
+            Paragraph("Trichy junction presets, 0ms autocomplete, 1-tap Google Maps handoff.", tbl_cell)
+        ],
+        [
+            Paragraph("<b>Rajesh (38)</b><br/>Fleet Dispatcher", tbl_cell_bold),
+            Paragraph("Oversees 45 regional light commercial delivery vans across TN.", tbl_cell),
+            Paragraph("Fuel budget overruns by 14% due to idling; GPS apps flap routes erratically.", tbl_cell),
+            Paragraph("Adjusted ETA with anti-flapping threshold; 60s live auto-refresh.", tbl_cell)
+        ],
+        [
+            Paragraph("<b>Insp. Sundaram (48)</b><br/>Traffic Authority", tbl_cell_bold),
+            Paragraph("Municipal traffic police & smart city urban planner.", tbl_cell),
+            Paragraph("Flood of citizen complaints without location data; no recurrence tracking.", tbl_cell),
+            Paragraph("Authority Hotspot Dashboard with 7-day spatial recurrence audit log.", tbl_cell)
+        ]
+    ]
+    t_persona = Table(persona_data, colWidths=[95, 125, 160, 160])
+    t_persona.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), PRIMARY_NAVY),
+        ('GRID', (0,0), (-1,-1), 0.5, BORDER_MUTED),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, ROW_ALT_BG]),
+        ('PADDING', (0,0), (-1,-1), 2),
+        ('VALIGN', (0,0), (-1,-1), 'TOP')
+    ]))
+    story.append(t_persona)
+    story.append(Spacer(1, 2))
+
+    # 4. User Journey: Current vs Proposed
+    story.append(Paragraph("4. Commuter User Journey: Current Gridlock vs Proposed Route Wise Flow", section_h1))
+    journey_data = [
+        [Paragraph("Journey Stage", tbl_header), Paragraph("Current Commuter Friction (Without Route Wise)", tbl_header), Paragraph("Proposed Route Wise Experience", tbl_header), Paragraph("Impact", tbl_header)],
+        [
+            Paragraph("<b>1. Trip Planning</b>", tbl_cell_bold),
+            Paragraph("Enters destination; app selects single shortest path with zero trade-off info.", tbl_cell),
+            Paragraph("Compares up to 3 candidate driving routes with transparent Adjusted ETA.", tbl_cell),
+            Paragraph("100% transparency", tbl_cell_bold)
+        ],
+        [
+            Paragraph("<b>2. Junction Triage</b>", tbl_cell_bold),
+            Paragraph("Enters bottleneck blindly; signal breakdown discovered only after arrival.", tbl_cell),
+            Paragraph("15-minute ARIMA ML trend and verified community incident markers visible.", tbl_cell),
+            Paragraph("Proactive avoidance", tbl_cell_bold)
+        ],
+        [
+            Paragraph("<b>3. Navigation</b>", tbl_cell_bold),
+            Paragraph("Opening Google Maps recalculates and reverts back to congested main arterial.", tbl_cell),
+            Paragraph("Decision-anchor waypoints (≤ 3 waypoints) preserve chosen corridor.", tbl_cell),
+            Paragraph("Corridor fidelity", tbl_cell_bold)
+        ]
+    ]
+    t_journey = Table(journey_data, colWidths=[80, 190, 190, 80])
+    t_journey.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), PRIMARY_NAVY),
+        ('GRID', (0,0), (-1,-1), 0.5, BORDER_MUTED),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, ROW_ALT_BG]),
+        ('PADDING', (0,0), (-1,-1), 2),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
+    ]))
+    story.append(t_journey)
+    story.append(Spacer(1, 2))
+
+    # 5. Competitive Moat Matrix
+    story.append(Paragraph("5. Competitive Landscape & Value Proposition", section_h1))
+    comp_data = [
+        [Paragraph("Feature / Capability", tbl_header), Paragraph("Google Maps API", tbl_header), Paragraph("Mapbox Navigation", tbl_header), Paragraph("Waze Platform", tbl_header), Paragraph("Route Wise (Cyber Knight)", tbl_header)],
+        [
+            Paragraph("<b>Configurable Scoring Weights</b>", tbl_cell_bold),
+            Paragraph("No (Fixed defaults)", tbl_cell),
+            Paragraph("Partial (Profiles)", tbl_cell),
+            Paragraph("No (Fixed defaults)", tbl_cell),
+            Paragraph("<font color='#16a34a'><b>Yes</b></font> — Adjusted ETA formula", tbl_cell_bold)
+        ],
+        [
+            Paragraph("<b>Transparent 'Why' Rationale</b>", tbl_cell_bold),
+            Paragraph("No (Opaque path)", tbl_cell),
+            Paragraph("No (No explanation)", tbl_cell),
+            Paragraph("No (No explanation)", tbl_cell),
+            Paragraph("<font color='#16a34a'><b>Yes</b></font> — Comparative plain-English tags", tbl_cell_bold)
+        ],
+        [
+            Paragraph("<b>15-Min ML Traffic Forecast</b>", tbl_cell_bold),
+            Paragraph("No (Live snapshot only)", tbl_cell),
+            Paragraph("No (Historical only)", tbl_cell),
+            Paragraph("No (Live alerts only)", tbl_cell),
+            Paragraph("<font color='#16a34a'><b>Yes</b></font> — Public ARIMA (1,0,1) model", tbl_cell_bold)
+        ],
+        [
+            Paragraph("<b>Anti-Flapping Route Threshold</b>", tbl_cell_bold),
+            Paragraph("No (Erratic flipping)", tbl_cell),
+            Paragraph("No (Flips on 1s delta)", tbl_cell),
+            Paragraph("Partial (Basic dampening)", tbl_cell),
+            Paragraph("<font color='#16a34a'><b>Yes</b></font> — <code>max(180s, 10% ETA)</code>", tbl_cell_bold)
+        ],
+        [
+            Paragraph("<b>Corridor-Preserving GMaps Handoff</b>", tbl_cell_bold),
+            Paragraph("N/A", tbl_cell),
+            Paragraph("No (Raw coords only)", tbl_cell),
+            Paragraph("N/A", tbl_cell),
+            Paragraph("<font color='#16a34a'><b>Yes</b></font> — Decision-anchor waypoints", tbl_cell_bold)
+        ],
+        [
+            Paragraph("<b>Incident Verification Consensus</b>", tbl_cell_bold),
+            Paragraph("Proprietary / Closed", tbl_cell),
+            Paragraph("No incident reporting", tbl_cell),
+            Paragraph("Unverified noise", tbl_cell),
+            Paragraph("<font color='#16a34a'><b>Yes</b></font> — 2-Vote + speed drop (&gt;30%)", tbl_cell_bold)
+        ],
+        [
+            Paragraph("<b>Offline Demo Fail-Safe</b>", tbl_cell_bold),
+            Paragraph("No (Fails on network drop)", tbl_cell),
+            Paragraph("No (Paid offline packs)", tbl_cell),
+            Paragraph("No (Network required)", tbl_cell),
+            Paragraph("<font color='#16a34a'><b>Yes</b></font> — Built-in dictionary + PWA", tbl_cell_bold)
+        ]
+    ]
+    t_comp = Table(comp_data, colWidths=[120, 100, 100, 95, 125])
+    t_comp.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), PRIMARY_NAVY),
+        ('GRID', (0,0), (-1,-1), 0.5, BORDER_MUTED),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, ROW_ALT_BG]),
+        ('PADDING', (0,0), (-1,-1), 1.8),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
+    ]))
+    story.append(t_comp)
+    story.append(Spacer(1, 2))
+
+    # 6. Monetization & Strategic Risks
+    story.append(Paragraph("6. Business Model & Strategic Risk Mitigations", section_h1))
+    biz_risk_data = [
+        [Paragraph("Tiered Monetization Model", tbl_header), Paragraph("Strategic Risk & Verified Mitigation Matrix", tbl_header)],
+        [
+            Paragraph(
+                "• <b>Developer Free ($0/mo):</b> 1,000 queries/mo, 60 req/min limit, full dashboard access, offline mock mode.<br/>"
+                "• <b>Growth Fleet ($0.003/query):</b> Up to 250k queries/mo, custom scoring profiles, 60s live refresh API, ARIMA ML forecast.<br/>"
+                "• <b>Municipal / Enterprise SLA:</b> Unlimited queries, Authority Hotspot Dashboard, 99.9% uptime SLA.",
+                tbl_cell
+            ),
+            Paragraph(
+                "• <b>API Quota / Network Outage:</b> Local coordinate dictionary ensures 100% demo uptime.<br/>"
+                "• <b>Spam Crowd Reports:</b> 2-vote peer consensus + TomTom speed-drop (&gt;30%) correlation.<br/>"
+                "• <b>Route Reversion on Handoff:</b> Decision-anchor waypoints (≤ 3 waypoints) preserve corridor.<br/>"
+                "• <b>Database Contention:</b> Native Node 24 SQLite in Write-Ahead Logging (`WAL`) mode.",
+                tbl_cell
+            )
+        ]
+    ]
+    t_biz = Table(biz_risk_data, colWidths=[270, 270])
+    t_biz.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), PRIMARY_NAVY),
+        ('GRID', (0,0), (-1,-1), 0.5, BORDER_MUTED),
+        ('PADDING', (0,0), (-1,-1), 2.5),
+        ('VALIGN', (0,0), (-1,-1), 'TOP')
+    ]))
+    story.append(t_biz)
+
+    return story
+
+
+def get_prd_page_1():
+    """Builds PRD Page 1 flowables: Title, Goals/Non-goals, 7-Step Flow, Epics FR-1 to FR-6"""
+    story = []
+
+    # Title & Metadata
+    hdr_table_data = [
+        [
+            Paragraph("<b>Route Wise — Product Requirements Document (PRD)</b>", title_style),
+            Paragraph("<b>DOC:</b> PRD-v2.6-GOLD | <b>TEAM:</b> Cyber Knight<br/><b>STATUS:</b> Approved & Verified (99 Tests)<br/><b>AUDIENCE:</b> Engineers, Mentors & Evaluators", meta_style)
+        ]
+    ]
+    hdr_table = Table(hdr_table_data, colWidths=[380, 160])
+    hdr_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+        ('TOPPADDING', (0,0), (-1,-1), 0)
+    ]))
+    story.append(hdr_table)
+    story.append(HRFlowable(width="100%", thickness=1, color=PRIMARY_BLUE, spaceBefore=2, spaceAfter=3))
+
+    # Product Vision, Goals & Non-Goals Callout
+    vision_text = (
+        "<b>Product Vision:</b> Deliver an intelligent, traffic-aware routing platform and installable PWA that eliminates junction gridlock through "
+        "transparent multi-criteria ranking, short-term ML forecasting, community consensus, and corridor-preserving navigation handoff.<br/>"
+        "<b>Strategic Goals:</b> <b>G-1:</b> Sub-450ms live API response with 100% demo availability. <b>G-2:</b> Anti-flapping route stability via "
+        "<code>timeSaved >= max(180s, 10% ETA)</code>. <b>G-3:</b> Verified incident overlay via 2-vote consensus + speed-drop correlation. "
+        "<b>G-4:</b> Corridor preservation in Google Maps via anchor waypoints. <b>G-5:</b> Native mobile PWA support.<br/>"
+        "<b>Non-Goals:</b> <b>NG-1:</b> Proprietary audio turn-by-turn navigation engine. <b>NG-2:</b> Physical traffic light actuator hardware."
+    )
+    vision_table = Table([[Paragraph(vision_text, body_text)]], colWidths=[540])
+    vision_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), LIGHT_BLUE),
+        ('BOX', (0,0), (-1,-1), 0.8, BORDER_BLUE),
+        ('PADDING', (0,0), (-1,-1), 3.5)
+    ]))
+    story.append(vision_table)
+    story.append(Spacer(1, 2))
+
+    # 1. 7-Step Interaction Flow
+    story.append(Paragraph("1. End-to-End User Experience & 7-Step Real-Time Interaction Flow", section_h1))
+    flow_data = [
+        [Paragraph("Step", tbl_header), Paragraph("Interaction Phase", tbl_header), Paragraph("System Action & Technical Detail", tbl_header), Paragraph("Trichy Real-World Example (CBS ⇄ Thillai Nagar)", tbl_header)],
+        [
+            Paragraph("<b>Step 1</b>", tbl_cell_bold),
+            Paragraph("<b>Clean Input</b>", tbl_cell_bold),
+            Paragraph("App opens centered on Trichy (zoom 13). User selects corridor preset or types custom names. 0ms autocomplete.", tbl_cell),
+            Paragraph("Clicks 'CBS ⇄ Chathiram'; origin and destination populate instantly.", tbl_cell)
+        ],
+        [
+            Paragraph("<b>Step 2</b>", tbl_cell_bold),
+            Paragraph("<b>Multi-Ingest</b>", tbl_cell_bold),
+            Paragraph("Queries TomTom Routing API for driving alternatives. Ingests distance (m), duration (s), and live traffic delay (s).", tbl_cell),
+            Paragraph("Ingests Route #1 (Arterial: 10km, +18m delay) & Route #2 (Bypass: 12.5km, +2m delay).", tbl_cell)
+        ],
+        [
+            Paragraph("<b>Step 3</b>", tbl_cell_bold),
+            Paragraph("<b>Overlay</b>", tbl_cell_bold),
+            Paragraph("Fetches active incidents from SQLite WAL store. Evaluates speed-drop telemetry correlation and runs ARIMA (1,0,1).", tbl_cell),
+            Paragraph("Detects signal failure report at HPO Junction correlated with 72% speed slowdown.", tbl_cell)
+        ],
+        [
+            Paragraph("<b>Step 4</b>", tbl_cell_bold),
+            Paragraph("<b>Adjusted ETA</b>", tbl_cell_bold),
+            Paragraph("Ranks routes by Adjusted ETA without double-counting. Enforces switch threshold: <code>timeSaved >= max(180s, 10% ETA)</code>.", tbl_cell),
+            Paragraph("Route #2 saves 16m (>180s and >10%); promoted to Recommended #1 pick!", tbl_cell)
+        ],
+        [
+            Paragraph("<b>Step 5</b>", tbl_cell_bold),
+            Paragraph("<b>Display & HUD</b>", tbl_cell_bold),
+            Paragraph("Renders color-coded polylines on Leaflet map. Displays obsidian glass cards, trade-off rationale, and 15m forecast HUD.", tbl_cell),
+            Paragraph("Commuter reviews Route #2 card: 'Fastest path — Avoids 16 mins of junction delay'.", tbl_cell)
+        ],
+        [
+            Paragraph("<b>Step 6</b>", tbl_cell_bold),
+            Paragraph("<b>GMaps Handoff</b>", tbl_cell_bold),
+            Paragraph("Extracts decision anchors (≤ 3 waypoints) preserving Route Wise's chosen corridor in external Google Maps navigation.", tbl_cell),
+            Paragraph("Launches Google Maps following Collector Bypass instead of reverting to HPO gridlock.", tbl_cell)
+        ],
+        [
+            Paragraph("<b>Step 7</b>", tbl_cell_bold),
+            Paragraph("<b>Authority Triage</b>", tbl_cell_bold),
+            Paragraph("Municipal dispatchers review 7-day recurrent congestion hotspots and resolve cleared incidents with officer audit logs.", tbl_cell),
+            Paragraph("Traffic police clears signal failure; status updates across all connected clients.", tbl_cell)
+        ]
+    ]
+    t_flow = Table(flow_data, colWidths=[35, 75, 230, 200])
+    t_flow.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), PRIMARY_NAVY),
+        ('GRID', (0,0), (-1,-1), 0.5, BORDER_MUTED),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, ROW_ALT_BG]),
+        ('PADDING', (0,0), (-1,-1), 1.8),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
+    ]))
+    story.append(t_flow)
+    story.append(Spacer(1, 2))
+
+    # 2. Epics & Functional Requirements (Part 1: FR-1 to FR-6)
+    story.append(Paragraph("2. Functional Requirements Traceability (Epics 1 to 3: FR-1 to FR-6)", section_h1))
+    fr1_data = [
+        [Paragraph("Req ID", tbl_header), Paragraph("Epic / Module", tbl_header), Paragraph("Functional Specification & Acceptance Criteria", tbl_header), Paragraph("Priority", tbl_header), Paragraph("Status", tbl_header)],
+        [
+            Paragraph("<b>FR-1</b>", tbl_cell_bold),
+            Paragraph("<b>Smart Geocoder</b>", tbl_cell_bold),
+            Paragraph("Converts plain text names to GPS coordinates via TomTom with instant 0ms offline dictionary fallback for 12 verified Trichy junctions.", tbl_cell),
+            Paragraph("P0 (Must)", badge_p0),
+            Paragraph("Complete", badge_complete)
+        ],
+        [
+            Paragraph("<b>FR-2</b>", tbl_cell_bold),
+            Paragraph("<b>Multi-Route Ingest</b>", tbl_cell_bold),
+            Paragraph("Requests candidate driving alternatives from TomTom API with real-time live traffic delay metrics and GeoJSON geometry.", tbl_cell),
+            Paragraph("P0 (Must)", badge_p0),
+            Paragraph("Complete", badge_complete)
+        ],
+        [
+            Paragraph("<b>FR-3</b>", tbl_cell_bold),
+            Paragraph("<b>Adjusted ETA Ranking</b>", tbl_cell_bold),
+            Paragraph("Ranks routes by Adjusted ETA without double-counting delay. Applies switch threshold: <code>timeSaved >= max(180s, 10% ETA)</code> preventing route flapping.", tbl_cell),
+            Paragraph("P0 (Must)", badge_p0),
+            Paragraph("Complete", badge_complete)
+        ],
+        [
+            Paragraph("<b>FR-4</b>", tbl_cell_bold),
+            Paragraph("<b>ARIMA (1,0,1) Forecast</b>", tbl_cell_bold),
+            Paragraph("Integrates public open-source zemlyansky/arima WebAssembly ML model to forecast velocity trends and delay spikes across +15m, +30m, +45m.", tbl_cell),
+            Paragraph("P1 (Should)", badge_p1),
+            Paragraph("Complete", badge_complete)
+        ],
+        [
+            Paragraph("<b>FR-5</b>", tbl_cell_bold),
+            Paragraph("<b>Native SQLite Store</b>", tbl_cell_bold),
+            Paragraph("Native Node 24 SQLite storage (node:sqlite) with Write-Ahead Logging (WAL mode), automated migrations, and spatial proximity indexes.", tbl_cell),
+            Paragraph("P1 (Should)", badge_p1),
+            Paragraph("Complete", badge_complete)
+        ],
+        [
+            Paragraph("<b>FR-6</b>", tbl_cell_bold),
+            Paragraph("<b>Community Reporting</b>", tbl_cell_bold),
+            Paragraph("Allows commuters to report 6 incident types (congestion, roadblock, roadwork, procession, signal_failure, waterlogging). Merges duplicates within 100m.", tbl_cell),
+            Paragraph("P1 (Should)", badge_p1),
+            Paragraph("Complete", badge_complete)
+        ]
+    ]
+    t_fr1 = Table(fr1_data, colWidths=[35, 95, 315, 50, 45])
+    t_fr1.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), PRIMARY_NAVY),
+        ('GRID', (0,0), (-1,-1), 0.5, BORDER_MUTED),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, ROW_ALT_BG]),
+        ('PADDING', (0,0), (-1,-1), 2),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
+    ]))
+    story.append(t_fr1)
+
+    return story
+
+
+def get_prd_page_2():
+    """Builds PRD Page 2 flowables: FR-7 to FR-13, Architecture, REST API Table"""
+    story = []
+
+    story.append(Paragraph("<b>ROUTE WISE (CYBER KNIGHT) — PRODUCT REQUIREMENTS (PAGE 2)</b>", subtitle_style))
+    story.append(Spacer(1, 1))
+
+    # Functional Requirements (Part 2: FR-7 to FR-13)
+    story.append(Paragraph("2. Functional Requirements Traceability (Cont. Epics 4 to 7: FR-7 to FR-13)", section_h1))
+    fr2_data = [
+        [Paragraph("Req ID", tbl_header), Paragraph("Epic / Module", tbl_header), Paragraph("Functional Specification & Acceptance Criteria", tbl_header), Paragraph("Priority", tbl_header), Paragraph("Status", tbl_header)],
+        [
+            Paragraph("<b>FR-7</b>", tbl_cell_bold),
+            Paragraph("<b>2-Vote Consensus</b>", tbl_cell_bold),
+            Paragraph("Auto-verifies reports when ≥ 2 positive community votes arrive or when TomTom speed drop (&gt;30%) correlates with location.", tbl_cell),
+            Paragraph("P1 (Should)", badge_p1),
+            Paragraph("Complete", badge_complete)
+        ],
+        [
+            Paragraph("<b>FR-8</b>", tbl_cell_bold),
+            Paragraph("<b>Leaflet Incident HUD</b>", tbl_cell_bold),
+            Paragraph("Verified incidents display solid halo + checkmark badge; Unverified display dashed border + question mark. 1-tap voting popup.", tbl_cell),
+            Paragraph("P1 (Should)", badge_p1),
+            Paragraph("Complete", badge_complete)
+        ],
+        [
+            Paragraph("<b>FR-9</b>", tbl_cell_bold),
+            Paragraph("<b>Authority Triage</b>", tbl_cell_bold),
+            Paragraph("Protected console (X-Authority-Role: admin) ranking active incidents with 7-day spatial recurrence count and 1-click resolution audit log.", tbl_cell),
+            Paragraph("P1 (Should)", badge_p1),
+            Paragraph("Complete", badge_complete)
+        ],
+        [
+            Paragraph("<b>FR-10</b>", tbl_cell_bold),
+            Paragraph("<b>GMaps Anchor Handoff</b>", tbl_cell_bold),
+            Paragraph("Extracts decision anchors (≤ 3 waypoints) preserving Route Wise's chosen corridor in Google Maps with driving and 2-wheeler modes.", tbl_cell),
+            Paragraph("P1 (Should)", badge_p1),
+            Paragraph("Complete", badge_complete)
+        ],
+        [
+            Paragraph("<b>FR-11</b>", tbl_cell_bold),
+            Paragraph("<b>60s Auto-Refresh</b>", tbl_cell_bold),
+            Paragraph("Visual 60-second countdown timer that automatically refreshes delay metrics and re-evaluates ranking. In-memory raster tile cache.", tbl_cell),
+            Paragraph("P2 (Could)", badge_p2),
+            Paragraph("Complete", badge_complete)
+        ],
+        [
+            Paragraph("<b>FR-12</b>", tbl_cell_bold),
+            Paragraph("<b>Progressive Web App</b>", tbl_cell_bold),
+            Paragraph("W3C manifest (display: standalone, #0b0f19 theme) and Service Worker (sw.js) with Network-First navigation and offline shell caching.", tbl_cell),
+            Paragraph("P2 (Could)", badge_p2),
+            Paragraph("Complete", badge_complete)
+        ],
+        [
+            Paragraph("<b>FR-13</b>", tbl_cell_bold),
+            Paragraph("<b>Trichy Presets & UX</b>", tbl_cell_bold),
+            Paragraph("6 compact corridor presets (CBS ⇄ Chathiram, etc.), one-click junction chips, 120 FPS decoupled typing, and clear input controls.", tbl_cell),
+            Paragraph("P2 (Could)", badge_p2),
+            Paragraph("Complete", badge_complete)
+        ]
+    ]
+    t_fr2 = Table(fr2_data, colWidths=[35, 95, 315, 50, 45])
+    t_fr2.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), PRIMARY_NAVY),
+        ('GRID', (0,0), (-1,-1), 0.5, BORDER_MUTED),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, ROW_ALT_BG]),
+        ('PADDING', (0,0), (-1,-1), 1.8),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
+    ]))
+    story.append(t_fr2)
+    story.append(Spacer(1, 2))
+
+    # 3. System Architecture & 3-Tier Design
+    story.append(Paragraph("3. Technical Architecture: Decoupled 3-Tier Pipeline", section_h1))
+    arch_text = (
+        "<b>Frontend Tier (Vite + React 18):</b> Obsidian dark glass interface, Leaflet maps, Service Worker (<code>sw.js</code>), and decoupled 120 FPS typing.<br/>"
+        "<b>Backend Tier (Node.js + Express):</b> SHA-256 API key authentication, sliding rate limiter, Adjusted ETA ranking engine, and TomTom raster tile cache.<br/>"
+        "<b>Persistence & AI Tier:</b> Native Node 24 SQLite (<code>node:sqlite</code>) in WAL mode + public <b>ARIMA (1,0,1)</b> ML forecasting engine."
+    )
+    story.append(Paragraph(arch_text, body_text))
+    story.append(Spacer(1, 2))
+
+    # 4. REST API Specifications Table
+    story.append(Paragraph("4. REST API Endpoints Specification", section_h1))
+    api_data = [
+        [Paragraph("Endpoint", tbl_header), Paragraph("Method & Auth", tbl_header), Paragraph("Payload / Query Params", tbl_header), Paragraph("Response Payload & Status", tbl_header), Paragraph("Latency Target", tbl_header)],
+        [
+            Paragraph("<code>/api/routes/recommend</code>", tbl_cell_bold),
+            Paragraph("POST<br/>X-API-Key req", tbl_cell),
+            Paragraph("<code>{ origin, destination, weights? }</code>", tbl_cell),
+            Paragraph("200 OK: Ranked routes array with GeoJSON, Adjusted ETA, delay, and trade-off rationale.", tbl_cell),
+            Paragraph("< 350ms (Live)<br/>< 30ms (Fallback)", tbl_cell)
+        ],
+        [
+            Paragraph("<code>/api/routes/refresh</code>", tbl_cell_bold),
+            Paragraph("POST<br/>X-API-Key req", tbl_cell),
+            Paragraph("<code>{ routeIds: [...] }</code>", tbl_cell),
+            Paragraph("200 OK: Fresh delay metrics and recalculated scores without re-geocoding locations.", tbl_cell),
+            Paragraph("< 250ms (Live)<br/>< 20ms (Fallback)", tbl_cell)
+        ],
+        [
+            Paragraph("<code>/api/routes/locations/search</code>", tbl_cell_bold),
+            Paragraph("GET<br/>Public", tbl_cell),
+            Paragraph("<code>?query=trichy</code>", tbl_cell),
+            Paragraph("200 OK: Typeahead array with 0ms verified junction matching and isJunction tag.", tbl_cell),
+            Paragraph("< 15ms", tbl_cell)
+        ],
+        [
+            Paragraph("<code>/api/reports</code>", tbl_cell_bold),
+            Paragraph("POST<br/>User Key", tbl_cell),
+            Paragraph("<code>{ category, lat, lon, description }</code>", tbl_cell),
+            Paragraph("201 Created: Incident record ID, merged status, and verification state.", tbl_cell),
+            Paragraph("< 50ms", tbl_cell)
+        ],
+        [
+            Paragraph("<code>/api/reports/:id/votes</code>", tbl_cell_bold),
+            Paragraph("POST<br/>User Key", tbl_cell),
+            Paragraph("<code>{ vote: 'yes' | 'no' }</code>", tbl_cell),
+            Paragraph("200 OK: Updated vote tally; auto-transitions to verified at 2 votes.", tbl_cell),
+            Paragraph("< 35ms", tbl_cell)
+        ],
+        [
+            Paragraph("<code>/api/authority/hotspots</code>", tbl_cell_bold),
+            Paragraph("GET<br/>Admin Guard", tbl_cell),
+            Paragraph("<code>X-Authority-Role: admin</code>", tbl_cell),
+            Paragraph("200 OK: Ranked active incidents with 7-day spatial recurrence count.", tbl_cell),
+            Paragraph("< 40ms", tbl_cell)
+        ],
+        [
+            Paragraph("<code>/api/authority/reports/:id/resolve</code>", tbl_cell_bold),
+            Paragraph("POST<br/>Admin Guard", tbl_cell),
+            Paragraph("<code>{ officerNotes?: string }</code>", tbl_cell),
+            Paragraph("200 OK: Resolved incident object with resolvedAt audit timestamp.", tbl_cell),
+            Paragraph("< 40ms", tbl_cell)
+        ],
+        [
+            Paragraph("<code>/api/health</code>", tbl_cell_bold),
+            Paragraph("GET<br/>Public", tbl_cell),
+            Paragraph("None", tbl_cell),
+            Paragraph("200 OK: System health, TomTom state, SQLite health, server uptime.", tbl_cell),
+            Paragraph("< 15ms", tbl_cell)
+        ]
+    ]
+    t_api = Table(api_data, colWidths=[115, 65, 120, 180, 60])
+    t_api.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), PRIMARY_NAVY),
+        ('GRID', (0,0), (-1,-1), 0.5, BORDER_MUTED),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, ROW_ALT_BG]),
+        ('PADDING', (0,0), (-1,-1), 1.8),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
+    ]))
+    story.append(t_api)
+
+    return story
+
+
+def get_prd_page_3():
+    """Builds PRD Page 3 flowables: Schema, NFRs, 99 Tests, DoD & 2-Minute Demo Script"""
+    story = []
+
+    story.append(Paragraph("<b>ROUTE WISE (CYBER KNIGHT) — PRODUCT REQUIREMENTS (PAGE 3)</b>", subtitle_style))
+    story.append(Spacer(1, 1))
+
+    # 5. Schema & NFRs
+    story.append(Paragraph("5. Persistence Schema & Non-Functional Requirements (NFRs)", section_h1))
+    schema_nfr_data = [
+        [Paragraph("SQLite WAL Database Schema", tbl_header), Paragraph("Non-Functional Requirements (NFRs) & Target Specifications", tbl_header)],
+        [
+            Paragraph(
+                "• <b>reports:</b> <code>id PK, category, lat, lon, description, status, votes_yes, votes_no, reporter_key, created_at</code><br/>"
+                "• <b>votes:</b> <code>id PK, report_id FK, user_key, vote, created_at, UNIQUE(report_id, user_key)</code><br/>"
+                "• <b>incident_resolutions:</b> <code>id PK, report_id FK, resolved_by, notes, resolved_at</code><br/>"
+                "• <b>Indexes:</b> Spatial composite index on <code>reports(lat, lon)</code> for sub-ms bounding box queries.<br/>"
+                "• <b>Caching:</b> 1-hour in-memory cache for raster tiles (1ms response); 5-minute geocode typeahead cache.",
+                tbl_cell
+            ),
+            Paragraph(
+                "• <b>Latency & Performance:</b> p95 API response &lt; 450ms; 0ms local geocode fallback; 120 FPS typing.<br/>"
+                "• <b>Security:</b> Cryptographic SHA-256 API key hashing; secrets redacted from logs; sliding rate-limiting.<br/>"
+                "• <b>Availability:</b> 100% demo availability via resilient coordinate dictionary; Service Worker offline cache.<br/>"
+                "• <b>Usability:</b> WCAG 2.1 AA compliant contrast; Cumulative Layout Shift (CLS) &lt; 0.05.<br/>"
+                "• <b>Compliance:</b> Zero personal telemetry tracking; pseudonymous client keys stored in localStorage.",
+                tbl_cell
+            )
+        ]
+    ]
+    t_sn = Table(schema_nfr_data, colWidths=[270, 270])
+    t_sn.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), PRIMARY_NAVY),
+        ('GRID', (0,0), (-1,-1), 0.5, BORDER_MUTED),
+        ('PADDING', (0,0), (-1,-1), 2.5),
+        ('VALIGN', (0,0), (-1,-1), 'TOP')
+    ]))
+    story.append(t_sn)
+    story.append(Spacer(1, 2))
+
+    # 6. Automated Test Suite Coverage (99/99 Tests)
+    story.append(Paragraph("6. Quality Assurance & Automated Test Verification (99/99 Tests Passing — 100% Pass Rate)", section_h1))
+    test_data = [
+        [Paragraph("Test Suite Module", tbl_header), Paragraph("Test Count", tbl_header), Paragraph("Coverage Scope & Verified Behaviors", tbl_header), Paragraph("Pass Rate", tbl_header)],
+        [
+            Paragraph("<b>Backend Test Suite</b><br/>(Node test runner)", tbl_cell_bold),
+            Paragraph("<b>75 Tests</b>", tbl_cell_bold),
+            Paragraph("SQLite WAL migrations, 2-vote consensus engine, speed-drop correlation (&gt;30%), Adjusted ETA switch threshold, municipal authority role guard, raster tile caching, route controllers.", tbl_cell),
+            Paragraph("<font color='#16a34a'><b>100% (75/75)</b></font>", tbl_cell_bold)
+        ],
+        [
+            Paragraph("<b>Frontend Test Suite</b><br/>(Node test runner)", tbl_cell_bold),
+            Paragraph("<b>24 Tests</b>", tbl_cell_bold),
+            Paragraph("Google Maps decision-anchor waypoint extraction, URL length compliance (&lt;2048 chars), pseudonymous user key generation, route card formatters, severity badges.", tbl_cell),
+            Paragraph("<font color='#16a34a'><b>100% (24/24)</b></font>", tbl_cell_bold)
+        ],
+        [
+            Paragraph("<b>Total Verification</b>", tbl_cell_bold),
+            Paragraph("<b>99 Tests</b>", tbl_cell_bold),
+            Paragraph("Full monorepo end-to-end integration verified; production Vite build passes in 1.8s.", tbl_cell),
+            Paragraph("<font color='#16a34a'><b>100% (99/99)</b></font>", tbl_cell_bold)
+        ]
+    ]
+    t_test = Table(test_data, colWidths=[110, 60, 310, 60])
+    t_test.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), PRIMARY_NAVY),
+        ('GRID', (0,0), (-1,-1), 0.5, BORDER_MUTED),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, ROW_ALT_BG]),
+        ('PADDING', (0,0), (-1,-1), 2),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
+    ]))
+    story.append(t_test)
+    story.append(Spacer(1, 2))
+
+    # 7. Release Criteria & 2-Minute Demo Script
+    story.append(Paragraph("7. Release Criteria & 2-Minute Live Demo Script for Evaluators", section_h1))
+    
+    script_box_text = (
+        "<b>Definition of Done (DoD):</b> 100% test pass (99/99 tests), production Vite build cleanly compiled, PWA service worker registered, "
+        "and offline coordinate fallback functional.<br/>"
+        "<b>2-Minute Live Demo Script for Judges & Mentors:</b><br/>"
+        "• <b>Step 1 (Open Dashboard & PWA — 20s):</b> Launch application. Show the clean idle state centered on Trichy, the obsidian dark glassmorphism, "
+        "and explain that Route Wise is an installable PWA with offline shell caching.<br/>"
+        "• <b>Step 2 (Click Preset Corridor — 30s):</b> Click the compact <code>CBS ⇄ Chathiram</code> preset. Origin and destination populate instantly "
+        "(0ms local geocoding). The system queries TomTom live telemetry and fetches multiple alternatives.<br/>"
+        "• <b>Step 3 (Explain Adjusted ETA & Trade-Offs — 40s):</b> Point out how Route #2 is recommended because it saves 16 minutes of junction delay "
+        "despite being 2.5 km longer. Explain the anti-flapping threshold tag and point to the 15-minute ARIMA ML traffic forecasting HUD.<br/>"
+        "• <b>Step 4 (Community Verification, Handoff & Tests — 30s):</b> Highlight community incident markers (verified solid pulse vs unverified dashed). "
+        "Click <i>'Start Navigation in Google Maps'</i> to show corridor preservation via anchor waypoints. Conclude with our <b>99 automated tests passed at 100%</b>."
+    )
+    script_table = Table([[Paragraph(script_box_text, body_text)]], colWidths=[540])
+    script_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), LIGHT_GREEN),
+        ('BOX', (0,0), (-1,-1), 0.8, BORDER_GREEN),
+        ('PADDING', (0,0), (-1,-1), 4)
+    ]))
+    story.append(script_table)
+
+    return story
+
+
+# =========================================================================
+# PDF BUILD FUNCTIONS
+# =========================================================================
+
+def build_master_pdf():
+    """Generates the combined 5-page Gold Standard document (MRD Pages 1-2 + PRD Pages 1-3)"""
+    pdf_path = 'SmartRoute_AI_PRD_MRD.pdf'
+    doc = SimpleDocTemplate(
+        pdf_path,
+        pagesize=letter,
+        leftMargin=36,
+        rightMargin=36,
+        topMargin=26,
+        bottomMargin=26
+    )
+    
+    story = []
+    # Page 1: MRD Part 1
+    story.extend(get_mrd_page_1())
+    story.append(PageBreak())
+    
+    # Page 2: MRD Part 2
+    story.extend(get_mrd_page_2())
+    story.append(PageBreak())
+    
+    # Page 3: PRD Part 1
+    story.extend(get_prd_page_1())
+    story.append(PageBreak())
+    
+    # Page 4: PRD Part 2
+    story.extend(get_prd_page_2())
+    story.append(PageBreak())
+    
+    # Page 5: PRD Part 3
+    story.extend(get_prd_page_3())
+    
+    doc.build(story, canvasmaker=MasterNumberedCanvas)
+    
+    # Verify page count with pypdf
+    reader = pypdf.PdfReader(pdf_path)
+    count = len(reader.pages)
+    print(f"Master PDF generated successfully: {pdf_path} (Page count: {count})")
+    assert count <= 5, f"ERROR: Master PDF exceeded 5 pages! Got {count} pages."
+
+
 def build_prd_pdf():
+    """Generates the 3-page standalone PRD PDF"""
     pdf_path = 'PRD/Cyber Knight - Commuters Waste Time at Congested Junctions - PRD.pdf'
     doc = SimpleDocTemplate(
         pdf_path,
         pagesize=letter,
         leftMargin=36,
         rightMargin=36,
-        topMargin=28,
-        bottomMargin=28
+        topMargin=26,
+        bottomMargin=26
     )
     
-    styles = getSampleStyleSheet()
-    
-    title_style = ParagraphStyle(
-        'DocTitle',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=15,
-        leading=18,
-        textColor=DARK_NAVY
-    )
-    
-    meta_style = ParagraphStyle(
-        'MetaStyle',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=7.5,
-        leading=10,
-        alignment=2, # Right
-        textColor=MUTED_GRAY
-    )
-    
-    subtitle_style = ParagraphStyle(
-        'SubTitle',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=8.5,
-        leading=11,
-        textColor=PRIMARY_BLUE
-    )
-    
-    h1_style = ParagraphStyle(
-        'H1',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=10,
-        leading=13,
-        textColor=PRIMARY_BLUE,
-        spaceBefore=6,
-        spaceAfter=3
-    )
-
-    body_style = ParagraphStyle(
-        'Body',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=7.5,
-        leading=9.5,
-        textColor=DARK_NAVY
-    )
-
-    body_bold = ParagraphStyle(
-        'BodyBold',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=7.5,
-        leading=9.5,
-        textColor=DARK_NAVY
-    )
-
-    tbl_header = ParagraphStyle(
-        'TblHdr',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=7,
-        leading=9,
-        textColor=colors.white
-    )
-
-    tbl_cell = ParagraphStyle(
-        'TblCell',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=7,
-        leading=8.5,
-        textColor=DARK_NAVY
-    )
-
-    tbl_cell_bold = ParagraphStyle(
-        'TblCellBold',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=7,
-        leading=8.5,
-        textColor=DARK_NAVY
-    )
-
-    badge_complete = ParagraphStyle(
-        'BadgeComplete',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=6.5,
-        leading=8,
-        textColor=GREEN_ACCENT
-    )
-
     story = []
-
-    # --- Header (Title + Metadata box) ---
-    hdr_table_data = [
-        [
-            Paragraph("<b>Route Wise — Product Requirements Document (PRD)</b>", title_style),
-            Paragraph("<b>DOCUMENT:</b> PRD-v2.0<br/><b>TEAM:</b> Cyber Knight<br/><b>AUDIENCE:</b> Engineers & Mentors<br/><b>STATUS:</b> Production Ready", meta_style)
-        ]
-    ]
-    hdr_table = Table(hdr_table_data, colWidths=[380, 160])
-    hdr_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
-        ('TOPPADDING', (0,0), (-1,-1), 0)
-    ]))
-    story.append(hdr_table)
-    story.append(Spacer(1, 2))
-    
-    story.append(Paragraph("Product Specifications, ML Forecasting Engine & Core Features — Explaining How It Works in Simple English", subtitle_style))
-    story.append(Spacer(1, 4))
-
-    # --- Callout Box: Product Overview & Goal ---
-    overview_text = (
-        "<b>Product Overview & Problem Solved:</b> Commuters waste 30 to 45 minutes at congested junction bottlenecks without knowing "
-        "which nearby route is less crowded. <b>Route Wise</b> is an intelligent, traffic-aware advisory platform with a Node.js REST API "
-        "and modern dark glass React/Leaflet dashboard. It fetches driving alternatives via live TomTom telemetry, ranks them using customizable "
-        "multi-criteria penalty scoring, predicts future slowdowns using an official public <b>ARIMA (1,0,1)</b> ML model, and generates transparent "
-        "side-by-side trade-off explanations so commuters save time and fuel."
-    )
-    overview_table = Table([[Paragraph(overview_text, body_style)]], colWidths=[540])
-    overview_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), LIGHT_BLUE),
-        ('BOX', (0,0), (-1,-1), 1, BORDER_BLUE),
-        ('PADDING', (0,0), (-1,-1), 6)
-    ]))
-    story.append(overview_table)
-    story.append(Spacer(1, 6))
-
-    # --- Section 1: How It Works in Real-Time: Step-by-Step Flow ---
-    story.append(Paragraph("1. How It Works in Real-Time: Step-by-Step Flow", h1_style))
-    story.append(Paragraph("To easily explain how the system works to mentors and judges, here is the exact 5-step journey of a single user request:", body_style))
-    story.append(Spacer(1, 3))
-
-    flow_data = [
-        [Paragraph("Step", tbl_header), Paragraph("System Action", tbl_header), Paragraph("Real-Time Example (Trichy: Central Bus Stand to Chatram / Coimbatore)", tbl_header)],
-        [
-            Paragraph("<b>Step 1<br/>Input</b>", tbl_cell_bold),
-            Paragraph("<b>Geocodes Locations</b>", tbl_cell_bold),
-            Paragraph("User enters origin 'Tiruchirappalli' and destination 'Coimbatore'. Geocoding service converts them to GPS coordinates via TomTom (with instant local coordinate fallback).", tbl_cell)
-        ],
-        [
-            Paragraph("<b>Step 2<br/>Ingest</b>", tbl_cell_bold),
-            Paragraph("<b>Fetches Up to 3 Paths</b>", tbl_cell_bold),
-            Paragraph("Queries live TomTom Routing API for all available alternatives. Ingests distance (km), free-flow baseline (s), and real-time live junction congestion delay (s).", tbl_cell)
-        ],
-        [
-            Paragraph("<b>Step 3<br/>Forecast</b>", tbl_cell_bold),
-            Paragraph("<b>ARIMA ML Prediction</b>", tbl_cell_bold),
-            Paragraph("Feeds 12-step rolling velocity series into open-source <b>ARIMA (1,0,1)</b> model from GitHub to project speed changes and delay spikes at +15m, +30m, and +45m horizons.", tbl_cell)
-        ],
-        [
-            Paragraph("<b>Step 4<br/>Score</b>", tbl_cell_bold),
-            Paragraph("<b>Multi-Criteria Ranking</b>", tbl_cell_bold),
-            Paragraph("Applies composite weighting: <code>Score = (50% × Time) + (35% × Delay) + (15% × Distance)</code>. Heavily penalizes junction gridlock and ranks Route #1 as top pick.", tbl_cell)
-        ],
-        [
-            Paragraph("<b>Step 5<br/>Display</b>", tbl_cell_bold),
-            Paragraph("<b>Explainable Dashboard</b>", tbl_cell_bold),
-            Paragraph("Renders pitch-black glass cards with A/B indicator rows, colored Leaflet polylines, 15-min forecast HUD, and a side-by-side comparison matrix with 60s auto-refresh timer.", tbl_cell)
-        ]
-    ]
-    flow_table = Table(flow_data, colWidths=[45, 125, 370])
-    flow_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), TABLE_HEADER_BG),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
-        ('PADDING', (0,0), (-1,-1), 3.5),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, TABLE_ROW_ALT])
-    ]))
-    story.append(flow_table)
-    story.append(Spacer(1, 6))
-
-    # --- Section 2: Core Functional Requirements (What We Built) ---
-    story.append(Paragraph("2. Core Functional Requirements (What We Built)", h1_style))
-    
-    fr_data = [
-        [Paragraph("Feature ID", tbl_header), Paragraph("Module Name", tbl_header), Paragraph("What It Does (Simple English)", tbl_header), Paragraph("Status", tbl_header)],
-        [
-            Paragraph("<b>FR-1</b>", tbl_cell_bold),
-            Paragraph("<b>Smart Geocoder</b>", tbl_cell_bold),
-            Paragraph("Converts plain text city/junction names to coordinates. If internet or API fails, instantly switches to offline dictionary so demo never crashes.", tbl_cell),
-            Paragraph("Complete", badge_complete)
-        ],
-        [
-            Paragraph("<b>FR-2</b>", tbl_cell_bold),
-            Paragraph("<b>Multi-Route Fetcher</b>", tbl_cell_bold),
-            Paragraph("Requests candidate driving routes from TomTom Routing API with real-time live traffic delay metrics and polyline geometry.", tbl_cell),
-            Paragraph("Complete", badge_complete)
-        ],
-        [
-            Paragraph("<b>FR-3</b>", tbl_cell_bold),
-            Paragraph("<b>ARIMA Forecasting</b>", tbl_cell_bold),
-            Paragraph("Integrates public open-source <code>zemlyansky/arima</code> WebAssembly ML model from GitHub to project speed and transit delay over 15m, 30m, and 45m horizons.", tbl_cell),
-            Paragraph("Complete", badge_complete)
-        ],
-        [
-            Paragraph("<b>FR-4</b>", tbl_cell_bold),
-            Paragraph("<b>Weighted Scoring Engine</b>", tbl_cell_bold),
-            Paragraph("Ranks routes mathematically based on Travel Time (50%), Delay Penalty (35%), and Distance (15%). Route with highest score (0-100) is #1 pick.", tbl_cell),
-            Paragraph("Complete", badge_complete)
-        ],
-        [
-            Paragraph("<b>FR-5</b>", tbl_cell_bold),
-            Paragraph("<b>Transparent Rationale</b>", tbl_cell_bold),
-            Paragraph("Generates plain-English comparison bullets (e.g. 'Saves 14m travel time & 37.1 km shorter vs Alt #2') and a full side-by-side comparison matrix table.", tbl_cell),
-            Paragraph("Complete", badge_complete)
-        ],
-        [
-            Paragraph("<b>FR-6</b>", tbl_cell_bold),
-            Paragraph("<b>API Key Security</b>", tbl_cell_bold),
-            Paragraph("Requires X-API-Key header. Keys are cryptographically hashed using SHA-256 with rate-limiting (100 req/min) and developer status endpoint.", tbl_cell),
-            Paragraph("Complete", badge_complete)
-        ],
-        [
-            Paragraph("<b>FR-7</b>", tbl_cell_bold),
-            Paragraph("<b>Glassmorphic Dashboard</b>", tbl_cell_bold),
-            Paragraph("Pitch-black glass interface with circular A/B indicator rows, quick presets (Trichy→Coimbatore, Salem→Bangalore), and interactive Leaflet map.", tbl_cell),
-            Paragraph("Complete", badge_complete)
-        ],
-        [
-            Paragraph("<b>FR-8</b>", tbl_cell_bold),
-            Paragraph("<b>Live Auto-Refresh (60s)</b>", tbl_cell_bold),
-            Paragraph("Visual 60-second countdown timer that automatically refreshes delay metrics and re-evaluates ranking without reloading the page.", tbl_cell),
-            Paragraph("Complete", badge_complete)
-        ]
-    ]
-    fr_table = Table(fr_data, colWidths=[45, 115, 325, 55])
-    fr_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), TABLE_HEADER_BG),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
-        ('PADDING', (0,0), (-1,-1), 3),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, TABLE_ROW_ALT])
-    ]))
-    story.append(fr_table)
-
-    # PAGE 1 ENDS HERE -> PAGE 2
+    # Page 1
+    story.extend(get_prd_page_1())
     story.append(PageBreak())
-
-    # --- PAGE 2 HEADER ---
-    story.append(Paragraph("<b>ROUTE WISE (CYBER KNIGHT) — PRODUCT REQUIREMENTS DOCUMENT (PAGE 2)</b>", subtitle_style))
-    story.append(Spacer(1, 4))
-
-    story.append(Paragraph("3. Technical Architecture, APIs, NFRs & Roadmap", h1_style))
+    # Page 2
+    story.extend(get_prd_page_2())
+    story.append(PageBreak())
+    # Page 3
+    story.extend(get_prd_page_3())
     
-    # 3.1 Architecture
-    story.append(Paragraph(
-        "<b>3.1 System Architecture: Clean 3-Tier Design</b><br/>"
-        "The application is built on a modular decoupled architecture: <b>Frontend:</b> React 18 + Vite + Leaflet maps + Bootstrap 5 dark glassmorphism. "
-        "<b>Backend:</b> Node.js + Express.js REST API with input validation & SHA-256 authentication. "
-        "<b>AI & Traffic Layer:</b> Public open-source <b>ARIMA (1,0,1)</b> ML engine + TomTom Traffic Flow raster tiles & Routing API with resilient coordinate dictionary fallback.",
-        body_style
-    ))
-    story.append(Spacer(1, 4))
-
-    # 3.2 REST API Specification
-    story.append(Paragraph("<b>3.2 REST API Endpoints Specification</b>", body_bold))
-    story.append(Spacer(1, 2))
+    doc.build(story, canvasmaker=StandaloneNumberedCanvas)
     
-    api_data = [
-        [Paragraph("Endpoint", tbl_header), Paragraph("Method & Auth", tbl_header), Paragraph("What It Does & Expected Response", tbl_header), Paragraph("Response Time", tbl_header)],
-        [
-            Paragraph("<code>/api/routes/recommend</code>", tbl_cell_bold),
-            Paragraph("POST<br/>X-API-Key req", tbl_cell),
-            Paragraph("Accepts origin & destination. Returns ranked routes with GeoJSON coordinates, duration, traffic delay, ARIMA 15m forecast, and comparative trade-off rationale.", tbl_cell),
-            Paragraph("< 350ms (Live)<br/>< 30ms (Fallback)", tbl_cell)
-        ],
-        [
-            Paragraph("<code>/api/routes/refresh</code>", tbl_cell_bold),
-            Paragraph("POST<br/>X-API-Key req", tbl_cell),
-            Paragraph("Refreshes live traffic delay and re-computes ranking scores for existing routes without re-geocoding locations.", tbl_cell),
-            Paragraph("< 250ms (Live)<br/>< 20ms (Fallback)", tbl_cell)
-        ],
-        [
-            Paragraph("<code>/api/health</code>", tbl_cell_bold),
-            Paragraph("GET<br/>Public (No auth)", tbl_cell),
-            Paragraph("Returns system status, TomTom connectivity state, ARIMA model readiness, and server uptime.", tbl_cell),
-            Paragraph("< 15ms", tbl_cell)
-        ],
-        [
-            Paragraph("<code>/api/developer/status</code>", tbl_cell_bold),
-            Paragraph("GET<br/>X-API-Key req", tbl_cell),
-            Paragraph("Validates API key and returns remaining quota and rate-limit status.", tbl_cell),
-            Paragraph("< 20ms", tbl_cell)
-        ]
-    ]
-    api_table = Table(api_data, colWidths=[120, 75, 260, 85])
-    api_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), TABLE_HEADER_BG),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
-        ('PADDING', (0,0), (-1,-1), 3),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, TABLE_ROW_ALT])
-    ]))
-    story.append(api_table)
-    story.append(Spacer(1, 4))
-
-    # 3.3 NFRs & Test Coverage
-    story.append(Paragraph("<b>3.3 Performance, Security & Automated Test Coverage</b>", body_bold))
-    story.append(Spacer(1, 2))
-
-    nfr_data = [
-        [Paragraph("Metric / Requirement", tbl_header), Paragraph("Target Specification", tbl_header), Paragraph("How We Achieved It", tbl_header)],
-        [
-            Paragraph("<b>API Speed (Latency)</b>", tbl_cell_bold),
-            Paragraph("< 450 ms response time", tbl_cell),
-            Paragraph("Streamlined native fetch calls, light JSON payloads, and local coordinate database lookup.", tbl_cell)
-        ],
-        [
-            Paragraph("<b>Zero-Crash Reliability</b>", tbl_cell_bold),
-            Paragraph("100% demo availability", tbl_cell),
-            Paragraph("Resilient network timeout handling and built-in coordinate fallback ensure routes display even if external API lags.", tbl_cell)
-        ],
-        [
-            Paragraph("<b>API Security</b>", tbl_cell_bold),
-            Paragraph("SHA-256 hashed keys", tbl_cell),
-            Paragraph("Keys are never stored in plain text; Express rate-limiter prevents spam or denial of service.", tbl_cell)
-        ],
-        [
-            Paragraph("<b>Automated Test Suite</b>", tbl_cell_bold),
-            Paragraph("40 unit & integration tests", tbl_cell),
-            Paragraph("Installed official TDD skill from GitHub (<code>addyosmani/agent-skills</code>). 11 client tests + 29 backend tests passing at 100%.", tbl_cell)
-        ]
-    ]
-    nfr_table = Table(nfr_data, colWidths=[130, 120, 290])
-    nfr_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), TABLE_HEADER_BG),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
-        ('PADDING', (0,0), (-1,-1), 3),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, TABLE_ROW_ALT])
-    ]))
-    story.append(nfr_table)
-    story.append(Spacer(1, 4))
-
-    # 3.4 Roadmap
-    story.append(Paragraph("<b>3.4 Product Roadmap (Now vs Next)</b>", body_bold))
-    story.append(Spacer(1, 2))
-
-    roadmap_data = [
-        [Paragraph("Phase", tbl_header), Paragraph("Timeline", tbl_header), Paragraph("Key Features & Deliverables", tbl_header)],
-        [
-            Paragraph("<b>Phase 1: Hackathon MVP</b>", tbl_cell_bold),
-            Paragraph("Current (Q4 2026)", tbl_cell),
-            Paragraph("Core 3-route ranking engine, Leaflet map, ARIMA 15m traffic forecast, comparative matrix, dark glass cards, 40 automated tests.", tbl_cell)
-        ],
-        [
-            Paragraph("<b>Phase 2: Multi-Stop Fleet</b>", tbl_cell_bold),
-            Paragraph("Q1 2027", tbl_cell),
-            Paragraph("Multi-stop traveling salesperson delivery sequencing, automated webhook alerts on unexpected congestion spikes, Python SDK.", tbl_cell)
-        ],
-        [
-            Paragraph("<b>Phase 3: Smart EV Fleet</b>", tbl_cell_bold),
-            Paragraph("Q2 2027", tbl_cell),
-            Paragraph("Electric Vehicle (EV) battery consumption optimization, hill-incline factor, weather condition overlays, enterprise fleet portal.", tbl_cell)
-        ]
-    ]
-    roadmap_table = Table(roadmap_data, colWidths=[120, 90, 330])
-    roadmap_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), TABLE_HEADER_BG),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
-        ('PADDING', (0,0), (-1,-1), 3),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, TABLE_ROW_ALT])
-    ]))
-    story.append(roadmap_table)
-    story.append(Spacer(1, 4))
-
-    # 3.5 2-Minute Live Demo Script for Judges
-    script_content = (
-        "<b>3.5 2-Minute Live Demo Script for Judges & Mentors:</b><br/>"
-        "<b>Step 1 (Open Dashboard):</b> Show the clean pitch-black dark glass dashboard, Leaflet map, and 'AI Engine Live' badge.<br/>"
-        "<b>Step 2 (Click Preset):</b> Click 'Trichy → Coimbatore' preset pill. Origin and destination populate and routes calculate instantly.<br/>"
-        "<b>Step 3 (Explain the Ranking & AI Trade-offs):</b> Show how Route #1 is recommended because it saves 14 mins and bypasses congested junctions. Point out the Side-by-Side Comparison Matrix.<br/>"
-        "<b>Step 4 (Show 15-Min ARIMA Forecast & TDD):</b> Point to the ARIMA (1,0,1) forecast HUD predicting speed trends (+15m, +30m, +45m) and mention our 40 automated tests passing at 100%."
-    )
-    script_table = Table([[Paragraph(script_content, body_style)]], colWidths=[540])
-    script_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f0fdf4')),
-        ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#86efac')),
-        ('PADDING', (0,0), (-1,-1), 5)
-    ]))
-    story.append(script_table)
-
-    doc.build(story)
-    print("Built PRD PDF successfully:", pdf_path)
+    reader = pypdf.PdfReader(pdf_path)
+    count = len(reader.pages)
+    print(f"PRD PDF generated successfully: {pdf_path} (Page count: {count})")
+    assert count <= 5, f"ERROR: PRD PDF exceeded 5 pages! Got {count} pages."
 
 
-# -------------------------------------------------------------
-# 2. BUILD MRD PDF (Exact 2-Page Layout)
-# -------------------------------------------------------------
 def build_mrd_pdf():
+    """Generates the 2-page standalone MRD PDF"""
     pdf_path = 'MRD/Cyber Knight - Commuters Waste Time at Congested Junctions - MRD.pdf'
     doc = SimpleDocTemplate(
         pdf_path,
         pagesize=letter,
         leftMargin=36,
         rightMargin=36,
-        topMargin=28,
-        bottomMargin=28
+        topMargin=26,
+        bottomMargin=26
     )
     
-    styles = getSampleStyleSheet()
-    
-    title_style = ParagraphStyle(
-        'DocTitle',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=15,
-        leading=18,
-        textColor=DARK_NAVY
-    )
-    
-    meta_style = ParagraphStyle(
-        'MetaStyle',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=7.5,
-        leading=10,
-        alignment=2,
-        textColor=MUTED_GRAY
-    )
-    
-    subtitle_style = ParagraphStyle(
-        'SubTitle',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=8.5,
-        leading=11,
-        textColor=PRIMARY_BLUE
-    )
-    
-    h1_style = ParagraphStyle(
-        'H1',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=10,
-        leading=13,
-        textColor=PRIMARY_BLUE,
-        spaceBefore=6,
-        spaceAfter=3
-    )
-
-    body_style = ParagraphStyle(
-        'Body',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=7.5,
-        leading=9.5,
-        textColor=DARK_NAVY
-    )
-
-    body_bold = ParagraphStyle(
-        'BodyBold',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=7.5,
-        leading=9.5,
-        textColor=DARK_NAVY
-    )
-
-    tbl_header = ParagraphStyle(
-        'TblHdr',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=7,
-        leading=9,
-        textColor=colors.white
-    )
-
-    tbl_cell = ParagraphStyle(
-        'TblCell',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=7,
-        leading=8.5,
-        textColor=DARK_NAVY
-    )
-
-    tbl_cell_bold = ParagraphStyle(
-        'TblCellBold',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=7,
-        leading=8.5,
-        textColor=DARK_NAVY
-    )
-
     story = []
-
-    # --- Header (Title + Metadata box) ---
-    hdr_table_data = [
-        [
-            Paragraph("<b>Route Wise — Market Requirements Document (MRD)</b>", title_style),
-            Paragraph("<b>DOCUMENT:</b> MRD-v2.0<br/><b>TEAM:</b> Cyber Knight<br/><b>AUDIENCE:</b> Mentors & Judges<br/><b>STATUS:</b> Final Pitch Ready", meta_style)
-        ]
-    ]
-    hdr_table = Table(hdr_table_data, colWidths=[380, 160])
-    hdr_table.setStyle(TableStyle([
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
-        ('TOPPADDING', (0,0), (-1,-1), 0)
-    ]))
-    story.append(hdr_table)
-    story.append(Spacer(1, 2))
-    
-    story.append(Paragraph("The Business Case, Market Need & Real-World Problem — Explaining Route Wise in Simple English", subtitle_style))
-    story.append(Spacer(1, 4))
-
-    # --- Callout Box: 30-Second Elevator Pitch ---
-    pitch_text = (
-        "<b>The 30-Second Elevator Pitch for Judges:</b> Most navigation apps blindly suggest the shortest route, even if it leads "
-        "straight into heavy junction gridlock. <b>Route Wise (Team Cyber Knight)</b> is an intelligent traffic advisory platform and live dashboard "
-        "that evaluates multiple driving alternatives, penalizes severe junction bottlenecks, and predicts 15-minute congestion trends using "
-        "an official public <b>ARIMA (1,0,1)</b> ML model from GitHub. It explains <i>why</i> it chose the route in plain words (e.g. "
-        "<i>'Saves 14 mins travel time and 37 km shorter vs Route #2'</i>), saving time, fuel, and driver frustration for daily commuters and couriers."
-    )
-    pitch_table = Table([[Paragraph(pitch_text, body_style)]], colWidths=[540])
-    pitch_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), LIGHT_BLUE),
-        ('BOX', (0,0), (-1,-1), 1, BORDER_BLUE),
-        ('PADDING', (0,0), (-1,-1), 6)
-    ]))
-    story.append(pitch_table)
-    story.append(Spacer(1, 6))
-
-    # --- Section 1: Real-World Story: Why Traditional GPS Fails Drivers ---
-    story.append(Paragraph("1. Real-World Story: Why Traditional GPS Fails Drivers", h1_style))
-    story.append(Paragraph(
-        "<b>The Scenario (Meet Karthik the Daily Commuter & Courier):</b> It is 5:15 PM peak evening rush hour in Tiruchirappalli. "
-        "Karthik has an urgent trip / package delivery from Central Bus Stand to Cantonment & Thillai Nagar.<br/>"
-        "• <b>What Traditional GPS Does:</b> Recommends Route A (Direct City Arterial) because it is only <b>10.0 km</b>. However, City Arterial "
-        "has an unexpected junction jam adding <b>18 minutes</b> of bumper-to-bumper delay. Total travel time: <b>42 minutes</b>. Karthik arrives late, "
-        "fuel is burned idling, and stress peaks.<br/>"
-        "• <b>What Route Wise Does:</b> Evaluates 3 alternatives simultaneously. Recognizes Route B (Outer Ring Corridor) is <b>12.5 km</b> (2.5 km longer) "
-        "but has near-zero delay (only <b>2 mins</b>). Total travel time: <b>26 minutes</b>. Route Wise recommends Route B, explaining: "
-        "<i>'Fastest path — Avoids 16 minutes of junction gridlock'</i>. Karthik arrives 16 minutes early!",
-        body_style
-    ))
-    story.append(Spacer(1, 4))
-
-    # Comparison Table
-    story_table_data = [
-        [Paragraph("Navigation Strategy", tbl_header), Paragraph("Distance", tbl_header), Paragraph("Traffic Delay", tbl_header), Paragraph("Total Time", tbl_header), Paragraph("Driver & Commuter Outcome", tbl_header)],
-        [
-            Paragraph("<b>Standard Navigation App</b><br/>(Picks shortest distance)", tbl_cell_bold),
-            Paragraph("10.0 km<br/>(Shortest)", tbl_cell),
-            Paragraph("<font color='#dc2626'><b>+18 mins</b></font><br/>(Heavy gridlock)", tbl_cell),
-            Paragraph("42 mins", tbl_cell_bold),
-            Paragraph("Late arrival, high stress, fuel wasted idling in junction bottleneck.", tbl_cell)
-        ],
-        [
-            Paragraph("<b>Route Wise (Cyber Knight)</b><br/>(Multi-criteria AI + ARIMA)", tbl_cell_bold),
-            Paragraph("12.5 km<br/>(+2.5 km)", tbl_cell),
-            Paragraph("<font color='#16a34a'><b>+2 mins</b></font><br/>(Smooth flowing)", tbl_cell),
-            Paragraph("<font color='#16a34a'><b>26 mins</b></font><br/>(16m faster!)", tbl_cell_bold),
-            Paragraph("On-time arrival, clear trade-off explanation, fuel-efficient constant speed.", tbl_cell)
-        ]
-    ]
-    story_table = Table(story_table_data, colWidths=[110, 60, 80, 60, 230])
-    story_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), TABLE_HEADER_BG),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
-        ('PADDING', (0,0), (-1,-1), 3.5),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, TABLE_ROW_ALT])
-    ]))
-    story.append(story_table)
-    story.append(Spacer(1, 6))
-
-    # --- Section 2: The Big Market Problem We Solve ---
-    story.append(Paragraph("2. The Big Market Problem We Solve", h1_style))
-    story.append(Paragraph(
-        "<b>1. Opaque 'Black-Box' Algorithms:</b> Traditional apps give a single route without explaining why it was picked, leaving commuters uncertain.<br/>"
-        "<b>2. Inability to Predict Traffic Spikes:</b> Existing maps show current delay, but cannot tell if congestion will clear or worsen in 15 minutes.<br/>"
-        "<b>3. Demo & Network Fragility:</b> Standard mapping APIs crash when offline or over quota. Developers need high-reliability fail-safes.",
-        body_style
-    ))
-    story.append(Spacer(1, 6))
-
-    # --- Section 3: Market Size: Multi-Billion Dollar Opportunity ---
-    story.append(Paragraph("3. Market Size: Multi-Billion Dollar Opportunity", h1_style))
-    market_data = [
-        [
-            Paragraph("<b>TAM: $14.2 Billion</b><br/><font color='#64748b'>Global GIS, Navigation & Fleet Logistics API Market</font>", tbl_cell),
-            Paragraph("<b>SAM: $2.8 Billion</b><br/><font color='#64748b'>Urban Last-Mile Delivery & Commuter Routing Software</font>", tbl_cell),
-            Paragraph("<b>SOM: $350 Million</b><br/><font color='#64748b'>Tier-2 & Tier-1 Indian Logistics SaaS, Startups & Commuters</font>", tbl_cell)
-        ]
-    ]
-    market_table = Table(market_data, colWidths=[180, 180, 180])
-    market_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f8fafc')),
-        ('BOX', (0,0), (-1,-1), 1, BORDER_BLUE),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
-        ('PADDING', (0,0), (-1,-1), 6)
-    ]))
-    story.append(market_table)
-
-    # PAGE 1 ENDS HERE -> PAGE 2
+    # Page 1
+    story.extend(get_mrd_page_1())
     story.append(PageBreak())
-
-    # --- PAGE 2 HEADER ---
-    story.append(Paragraph("<b>ROUTE WISE (CYBER KNIGHT) — MARKET REQUIREMENTS DOCUMENT (PAGE 2)</b>", subtitle_style))
-    story.append(Spacer(1, 4))
-
-    story.append(Paragraph("4. Target Audience, Competition & Revenue Model", h1_style))
-
-    # 4.1 Target Audience
-    story.append(Paragraph(
-        "<b>4.1 Who Needs This? (Target Customer Segments)</b><br/>"
-        "• <b>Daily Urban Commuters (2W & 4W):</b> Need to bypass known junction bottlenecks during 8:00 AM – 10:00 AM and 5:00 PM – 7:30 PM peak commutes.<br/>"
-        "• <b>On-Demand Couriers & Delivery Drivers:</b> Under strict SLAs (8 deliveries/hr). A 15-minute junction delay causes missed order deadlines and penalties.<br/>"
-        "• <b>Fleet & Logistics Dispatchers:</b> Managing delivery vans. A 15-minute delay per driver compounds into thousands of wasted fuel rupees weekly.",
-        body_style
-    ))
-    story.append(Spacer(1, 4))
-
-    # 4.2 Why Route Wise Wins Against Big Tech APIs
-    story.append(Paragraph("<b>4.2 Why Route Wise Wins Against Big Tech APIs</b>", body_bold))
-    story.append(Spacer(1, 2))
-
-    comp_data = [
-        [Paragraph("Feature / Capability", tbl_header), Paragraph("Google Maps API", tbl_header), Paragraph("Mapbox Navigation", tbl_header), Paragraph("Route Wise (Cyber Knight)", tbl_header)],
-        [
-            Paragraph("<b>Configurable Scoring Weights</b>", tbl_cell_bold),
-            Paragraph("No (Fixed default algorithm)", tbl_cell),
-            Paragraph("Partial (Limited vehicle profiles)", tbl_cell),
-            Paragraph("<font color='#16a34a'><b>Yes</b></font> — Customize Time, Delay Penalty & Distance", tbl_cell_bold)
-        ],
-        [
-            Paragraph("<b>Transparent 'Why' Rationale</b>", tbl_cell_bold),
-            Paragraph("No (Opaque black-box route)", tbl_cell),
-            Paragraph("No (No explanation given)", tbl_cell),
-            Paragraph("<font color='#16a34a'><b>Yes</b></font> — Clear tags like 'Saves 14m & 37 km shorter'", tbl_cell_bold)
-        ],
-        [
-            Paragraph("<b>15-Min ML Traffic Forecast</b>", tbl_cell_bold),
-            Paragraph("No (Live conditions only)", tbl_cell),
-            Paragraph("No (Historical averages only)", tbl_cell),
-            Paragraph("<font color='#16a34a'><b>Yes</b></font> — Public ARIMA(1,0,1) model for +15m, +30m, +45m", tbl_cell_bold)
-        ],
-        [
-            Paragraph("<b>Traffic Severity Badges</b>", tbl_cell_bold),
-            Paragraph("Partial (Visual map lines only)", tbl_cell),
-            Paragraph("Partial (Generic speed colors)", tbl_cell),
-            Paragraph("<font color='#16a34a'><b>Yes</b></font> — Green / Yellow / Red delay classifier", tbl_cell_bold)
-        ],
-        [
-            Paragraph("<b>Offline Demo Fail-Safe</b>", tbl_cell_bold),
-            Paragraph("No (Fails if internet drops)", tbl_cell),
-            Paragraph("No (Requires paid offline packs)", tbl_cell),
-            Paragraph("<font color='#16a34a'><b>Yes</b></font> — High-fidelity local coordinate dictionary", tbl_cell_bold)
-        ],
-        [
-            Paragraph("<b>Side-by-Side Comparison Matrix</b>", tbl_cell_bold),
-            Paragraph("No (Must switch back & forth)", tbl_cell),
-            Paragraph("No (Single route view)", tbl_cell),
-            Paragraph("<font color='#16a34a'><b>Yes</b></font> — Simultaneous comparison table", tbl_cell_bold)
-        ]
-    ]
-    comp_table = Table(comp_data, colWidths=[120, 120, 120, 180])
-    comp_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), TABLE_HEADER_BG),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
-        ('PADDING', (0,0), (-1,-1), 3),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, TABLE_ROW_ALT])
-    ]))
-    story.append(comp_table)
-    story.append(Spacer(1, 4))
-
-    # 4.3 Monetization
-    story.append(Paragraph("<b>4.3 How We Monetize (Simple Tiered Model)</b>", body_bold))
-    story.append(Spacer(1, 2))
-
-    monetize_data = [
-        [Paragraph("Tier", tbl_header), Paragraph("Price", tbl_header), Paragraph("Included Quota & Capabilities", tbl_header), Paragraph("Target Customer", tbl_header)],
-        [
-            Paragraph("<b>Free Developer</b>", tbl_cell_bold),
-            Paragraph("$0 / mo", tbl_cell),
-            Paragraph("1,000 queries/month, 60 req/min rate limit, full dashboard access, offline mock mode.", tbl_cell),
-            Paragraph("Hackathons, student projects, prototyping.", tbl_cell)
-        ],
-        [
-            Paragraph("<b>Growth Fleet</b>", tbl_cell_bold),
-            Paragraph("$0.003 / query", tbl_cell),
-            Paragraph("Up to 250,000 queries/month, custom scoring presets, 60-second live refresh API, ARIMA forecast.", tbl_cell),
-            Paragraph("Courier startups, local delivery fleets.", tbl_cell)
-        ],
-        [
-            Paragraph("<b>Enterprise</b>", tbl_cell_bold),
-            Paragraph("Custom SLA", tbl_cell),
-            Paragraph("Unlimited queries, multi-stop TSP route optimization, dedicated container hosting, 99.9% uptime SLA.", tbl_cell),
-            Paragraph("Logistics corporations, mobility providers.", tbl_cell)
-        ]
-    ]
-    monetize_table = Table(monetize_data, colWidths=[80, 70, 240, 150])
-    monetize_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), TABLE_HEADER_BG),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
-        ('PADDING', (0,0), (-1,-1), 3),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, TABLE_ROW_ALT])
-    ]))
-    story.append(monetize_table)
-    story.append(Spacer(1, 5))
-
-    # 4.4 Top 3 Takeaways to Explain to Judges
-    story.append(Paragraph("<b>4.4 Top 3 Takeaways to Explain to Judges & Mentors</b>", body_bold))
-    story.append(Spacer(1, 2))
-
-    takeaways_data = [
-        [
-            Paragraph("<b>1. Not Just Another Map:</b><br/>We don't reinvent map tiles; we solve the intelligence layer that evaluates multiple alternatives and tells you <i>why</i> Route #1 is the best.", tbl_cell),
-            Paragraph("<b>2. Tangible Commuter ROI:</b><br/>Saving 15 minutes of junction delay per trip directly reduces fuel consumption, vehicle wear, late penalties, and driver burnout.", tbl_cell),
-            Paragraph("<b>3. Production-Ready Tech:</b><br/>Powered by TomTom live traffic, public <b>ARIMA (1,0,1)</b> ML forecasting, resilient fail-safes, and <b>40 automated tests</b> passed at 100%.", tbl_cell)
-        ]
-    ]
-    takeaways_table = Table(takeaways_data, colWidths=[180, 180, 180])
-    takeaways_table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,-1), LIGHT_BLUE),
-        ('BOX', (0,0), (-1,-1), 1, BORDER_BLUE),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
-        ('PADDING', (0,0), (-1,-1), 5)
-    ]))
-    story.append(takeaways_table)
-
-    doc.build(story)
-    print("Built MRD PDF successfully:", pdf_path)
+    # Page 2
+    story.extend(get_mrd_page_2())
+    
+    doc.build(story, canvasmaker=StandaloneNumberedCanvas)
+    
+    reader = pypdf.PdfReader(pdf_path)
+    count = len(reader.pages)
+    print(f"MRD PDF generated successfully: {pdf_path} (Page count: {count})")
+    assert count <= 5, f"ERROR: MRD PDF exceeded 5 pages! Got {count} pages."
 
 
-# -------------------------------------------------------------
-# 3. BUILD DOCX DOCUMENTS
-# -------------------------------------------------------------
+# =========================================================================
+# DOCX BUILD FUNCTIONS
+# =========================================================================
+
 def build_prd_docx():
     docx_path = 'PRD/Cyber Knight - Commuters Waste Time at Congested Junctions - PRD.docx'
     doc = docx.Document()
     
-    # Title
     p_title = doc.add_paragraph()
     r_title = p_title.add_run("Route Wise — Product Requirements Document (PRD)")
     r_title.bold = True
-    r_title.font.size = Pt(18)
+    r_title.font.size = Pt(16)
     r_title.font.color.rgb = RGBColor(15, 23, 42)
     
-    p_meta = doc.add_paragraph("DOCUMENT: PRD-v2.0 | TEAM: Cyber Knight | AUDIENCE: Engineers & Mentors | STATUS: Production Ready")
-    p_meta.runs[0].font.size = Pt(9.5)
+    p_meta = doc.add_paragraph("DOCUMENT: PRD-v2.6-GOLD | TEAM: Cyber Knight | AUDIENCE: Engineers & Mentors | STATUS: Approved (99 Tests)")
+    p_meta.runs[0].font.size = Pt(9)
     p_meta.runs[0].font.color.rgb = RGBColor(100, 116, 139)
     
-    p_sub = doc.add_paragraph("Product Specifications, ML Forecasting Engine & Core Features — Explaining How It Works in Simple English")
-    p_sub.runs[0].bold = True
-    p_sub.runs[0].font.color.rgb = RGBColor(30, 64, 175)
-    
-    # Overview Box
     p_box = doc.add_paragraph()
-    p_box.paragraph_format.left_indent = Inches(0.2)
-    p_box.paragraph_format.right_indent = Inches(0.2)
     r_box = p_box.add_run(
-        "Product Overview & Goal: Commuters waste 30 to 45 minutes at congested junction bottlenecks without knowing which nearby route is less crowded. "
-        "Route Wise is an intelligent, traffic-aware routing system composed of an Express REST API and an interactive React/Leaflet dashboard. Given any origin "
-        "and destination, it retrieves up to 3 driving alternatives, ranks them mathematically using customizable penalty weights for traffic delay, predicts "
-        "future velocity trends via an ARIMA (1,0,1) machine learning model, and provides transparent side-by-side explanations for every recommendation."
+        "Product Vision & Goals: Route Wise is an intelligent, traffic-aware routing platform and installable PWA. Given any origin "
+        "and destination, it retrieves candidate driving alternatives, ranks them using Adjusted ETA with an anti-flapping switch threshold, "
+        "predicts 15-minute trends via an ARIMA (1,0,1) ML model, validates crowd incidents via 2-vote consensus, provides municipal authority "
+        "hotspot triage, and enables 1-tap Google Maps handoff with corridor shape preservation."
     )
-    r_box.font.size = Pt(10)
+    r_box.font.size = Pt(9.5)
     
-    doc.add_heading("1. How It Works in Real-Time: Step-by-Step Flow", level=2)
-    t1 = doc.add_table(rows=6, cols=3)
+    doc.add_heading("1. End-to-End User Experience & 7-Step Interaction Flow", level=2)
+    t1 = doc.add_table(rows=8, cols=4)
     t1.style = 'Table Grid'
-    headers1 = ["Step", "System Action", "Real-Time Example (Trichy: Central Bus Stand to Coimbatore)"]
+    headers1 = ["Step", "Phase", "System Action & Technical Detail", "Trichy Corridor Example (CBS ⇄ Thillai Nagar)"]
     for i, h in enumerate(headers1):
         t1.rows[0].cells[i].text = h
         t1.rows[0].cells[i].paragraphs[0].runs[0].bold = True
     
     steps = [
-        ("Step 1: Input", "Geocodes Locations", "User enters origin 'Tiruchirappalli' and destination 'Coimbatore'. Geocoding service converts them to GPS coordinates via TomTom (with instant offline fallback)."),
-        ("Step 2: Ingest", "Fetches 3 Paths", "Queries TomTom Routing API for all candidate driving alternatives. Ingests distance (km), baseline free-flow travel time (s), and real-time live traffic congestion delay (s)."),
-        ("Step 3: Forecast", "ARIMA ML Prediction", "Feeds 12-step rolling velocity series into open-source ARIMA (1,0,1) model from GitHub to project speed changes and delay spikes at +15m, +30m, and +45m horizons."),
-        ("Step 4: Score", "Applies Scoring Formula", "Applies composite weighting: Score = (50% × Time) + (35% × Traffic Delay) + (15% × Distance). Heavily penalizes stop-and-go junction gridlock and ranks Route #1 as top pick."),
-        ("Step 5: Display", "Interactive Dashboard", "Draws color-coded polyline paths on Leaflet map. Displays pitch-black glass route cards, 15-minute ARIMA forecast HUD, and side-by-side comparison matrix with 60s auto-refresh.")
+        ("Step 1", "Clean Input", "App opens centered on Trichy (zoom 13). User selects corridor preset or types custom names. 0ms autocomplete.", "Clicks 'CBS ⇄ Chathiram'; origin and destination populate instantly."),
+        ("Step 2", "Multi-Ingest", "Queries TomTom Routing API for driving alternatives. Ingests distance (m), duration (s), and live traffic delay (s).", "Ingests Route #1 (10km, +18m delay) & Route #2 (12.5km, +2m delay)."),
+        ("Step 3", "Overlay", "Fetches active incidents from SQLite WAL store. Evaluates speed-drop telemetry correlation and runs ARIMA (1,0,1).", "Detects signal failure report at HPO Junction correlated with 72% speed slowdown."),
+        ("Step 4", "Adjusted ETA", "Ranks routes by Adjusted ETA without double-counting. Enforces switch threshold: timeSaved >= max(180s, 10% ETA).", "Route #2 saves 16m (>180s and >10%); promoted to Recommended #1 pick!"),
+        ("Step 5", "Display & HUD", "Renders color-coded polylines on Leaflet map. Displays obsidian glass cards, trade-off rationale, and 15m forecast HUD.", "Commuter reviews Route #2 card: 'Fastest path — Avoids 16 mins of junction delay'."),
+        ("Step 6", "GMaps Handoff", "Extracts decision anchors (<= 3 waypoints) preserving Route Wise's chosen corridor in external Google Maps navigation.", "Launches Google Maps following Collector Bypass instead of reverting to HPO gridlock."),
+        ("Step 7", "Authority Triage", "Municipal dispatchers review 7-day recurrent congestion hotspots and resolve cleared incidents with officer audit logs.", "Traffic police clears signal failure; status updates across all connected clients.")
     ]
-    for idx, (st, act, ex) in enumerate(steps):
+    for idx, (st, ph, act, ex) in enumerate(steps):
         row = t1.rows[idx+1]
         row.cells[0].text = st
-        row.cells[1].text = act
-        row.cells[2].text = ex
+        row.cells[1].text = ph
+        row.cells[2].text = act
+        row.cells[3].text = ex
         
-    doc.add_heading("2. Core Functional Requirements (What We Built)", level=2)
-    t2 = doc.add_table(rows=9, cols=4)
+    doc.add_heading("2. Functional Requirements Traceability (FR-1 to FR-13)", level=2)
+    t2 = doc.add_table(rows=14, cols=4)
     t2.style = 'Table Grid'
-    headers2 = ["Feature ID", "Module Name", "What It Does (Simple English)", "Status"]
+    headers2 = ["Req ID", "Module Name", "What It Does & Acceptance Criteria", "Priority"]
     for i, h in enumerate(headers2):
         t2.rows[0].cells[i].text = h
         t2.rows[0].cells[i].paragraphs[0].runs[0].bold = True
         
     frs = [
-        ("FR-1", "Smart Geocoder", "Converts plain text city/street names to coordinates. If internet or API fails, instantly switches to offline dictionary so demo never crashes.", "Complete"),
-        ("FR-2", "Multi-Route Fetcher", "Requests candidate driving routes from TomTom Routing API with real-time live traffic delay metrics and polyline geometry.", "Complete"),
-        ("FR-3", "ARIMA Traffic Forecast", "Integrates public open-source zemlyansky/arima WebAssembly ML model from GitHub to project speed and transit delay over 15m, 30m, and 45m horizons.", "Complete"),
-        ("FR-4", "Weighted Scoring Engine", "Ranks routes mathematically based on Time, Delay Penalty, and Distance. The route with the highest overall score (0-100) is recommended as #1.", "Complete"),
-        ("FR-5", "Explainable Comparison", "Generates human-readable trade-off reasons (e.g. 'Saves 14m travel time & 37.1 km shorter vs Alt #2') and a full side-by-side comparison matrix.", "Complete"),
-        ("FR-6", "API Key Security", "Requires X-API-Key header. Keys are cryptographically hashed using SHA-256 with rate-limiting (100 req/min).", "Complete"),
-        ("FR-7", "Leaflet Map Dashboard", "Interactive React 18 map showing colored polylines, start/end pins, route summary cards, and quick city preset buttons (Trichy, Salem, Chennai).", "Complete"),
-        ("FR-8", "Live Auto-Refresh (60s)", "A visual 60-second countdown timer that automatically refreshes delay metrics and re-evaluates ranking without reloading the page.", "Complete")
+        ("FR-1", "Smart Geocoder", "Converts plain text street/city names to GPS coordinates via TomTom with instant 0ms offline dictionary fallback for 12 verified Trichy junctions.", "Must Have"),
+        ("FR-2", "Multi-Route Ingest", "Requests candidate driving alternatives from TomTom API with real-time live traffic delay metrics and GeoJSON geometry.", "Must Have"),
+        ("FR-3", "Adjusted ETA Ranking", "Ranks routes by Adjusted ETA without double-counting delay. Applies switch threshold: timeSaved >= max(180s, 10% ETA) preventing route flapping.", "Must Have"),
+        ("FR-4", "ARIMA ML Forecast", "Integrates public open-source zemlyansky/arima WebAssembly ML model to forecast velocity trends and delay spikes across +15m, +30m, +45m.", "Should Have"),
+        ("FR-5", "Native SQLite Store", "Native Node 24 SQLite storage (node:sqlite) with Write-Ahead Logging (WAL mode), automated migrations, and spatial proximity indexes.", "Should Have"),
+        ("FR-6", "Community Reporting", "Allows commuters to report 6 incident types (congestion, roadblock, roadwork, procession, signal_failure, waterlogging). Merges duplicates within 100m.", "Should Have"),
+        ("FR-7", "2-Vote Consensus", "Auto-verifies reports when >= 2 positive community votes arrive or when TomTom speed drop (>30%) correlates with location.", "Should Have"),
+        ("FR-8", "Leaflet Incident HUD", "Verified incidents display solid halo + checkmark badge; Unverified display dashed border + question mark. 1-tap voting popup.", "Should Have"),
+        ("FR-9", "Authority Triage", "Protected console (X-Authority-Role: admin) ranking active incidents with 7-day spatial recurrence count and 1-click resolution audit log.", "Should Have"),
+        ("FR-10", "GMaps Anchor Handoff", "Extracts decision anchors (<= 3 waypoints) preserving Route Wise's chosen corridor in Google Maps with driving and 2-wheeler modes.", "Should Have"),
+        ("FR-11", "60s Auto-Refresh", "Visual 60-second countdown timer that automatically refreshes delay metrics and re-evaluates ranking. In-memory raster tile cache.", "Could Have"),
+        ("FR-12", "Progressive Web App", "W3C manifest (display: standalone, #0b0f19 theme) and Service Worker (sw.js) with Network-First navigation and offline shell caching.", "Could Have"),
+        ("FR-13", "Trichy Presets & UX", "6 compact corridor presets (CBS ⇄ Chathiram, etc.), one-click junction chips, 120 FPS decoupled typing, and clear input controls.", "Could Have")
     ]
-    for idx, (fid, mod, desc, stat) in enumerate(frs):
+    for idx, (fid, mod, desc, prio) in enumerate(frs):
         row = t2.rows[idx+1]
         row.cells[0].text = fid
         row.cells[1].text = mod
         row.cells[2].text = desc
-        row.cells[3].text = stat
+        row.cells[3].text = prio
         
-    doc.add_heading("3. Technical Architecture, APIs, NFRs & Roadmap", level=2)
+    doc.add_heading("3. Quality Assurance & Automated Test Verification", level=2)
     doc.add_paragraph(
-        "3.1 System Architecture: Clean 3-Tier Design\n"
-        "Frontend: React 18 + Vite + Leaflet maps + Bootstrap 5 dark glassmorphism.\n"
-        "Backend: Node.js + Express.js REST API with input validation & SHA-256 authentication.\n"
-        "AI/ML Layer: Public open-source ARIMA (1,0,1) time-series model (zemlyansky/arima) + TomTom Traffic Flow & Routing API with resilient coordinate dictionary fallback."
-    )
-    
-    doc.add_heading("3.2 Performance, Security & Automated Test Coverage", level=3)
-    doc.add_paragraph(
-        "• API Speed: < 450 ms response time with streamlined native fetch and local cache.\n"
-        "• Zero-Crash Reliability: Built-in coordinate dictionary and network timeout fallback ensure routes display even if internet or TomTom quota fails.\n"
-        "• Automated Test Suite: Followed Addy Osmani's test-driven-development skill from GitHub. 40 automated tests (11 client tests + 29 backend tests) passing at 100%."
-    )
-    
-    doc.add_heading("3.3 2-Minute Live Demo Script for Judges", level=3)
-    doc.add_paragraph(
-        "Step 1 (Open Dashboard): Show the clean pitch-black dark glass dashboard, Leaflet map, and AI Engine Live badge.\n"
-        "Step 2 (Click Preset): Click 'Trichy → Coimbatore' preset pill. Origin and destination populate automatically and 3 routes calculate instantly.\n"
-        "Step 3 (Explain the Ranking): Point out how Route #1 is recommended because it saves 14 minutes and bypasses junction gridlock. Show the Side-by-Side Comparison Matrix.\n"
-        "Step 4 (Show 15-Min ARIMA Forecast & Tests): Point to the 15-Min ARIMA ML forecast HUD and mention our 40 automated tests passing at 100%."
+        "• Monorepo Test Pass Rate: 99 automated tests passing at 100% (75 backend tests + 24 frontend tests).\n"
+        "• Production Build: Clean Vite bundle compiles in 1.8s with PWA service worker registered.\n"
+        "• Zero-Crash Reliability: Built-in coordinate dictionary ensures 100% demo uptime under network drops."
     )
     
     doc.save(docx_path)
@@ -887,42 +1157,30 @@ def build_mrd_docx():
     docx_path = 'MRD/Cyber Knight - Commuters Waste Time at Congested Junctions - MRD.docx'
     doc = docx.Document()
     
-    # Title
     p_title = doc.add_paragraph()
     r_title = p_title.add_run("Route Wise — Market Requirements Document (MRD)")
     r_title.bold = True
-    r_title.font.size = Pt(18)
+    r_title.font.size = Pt(16)
     r_title.font.color.rgb = RGBColor(15, 23, 42)
     
-    p_meta = doc.add_paragraph("DOCUMENT: MRD-v2.0 | TEAM: Cyber Knight | AUDIENCE: Mentors & Judges | STATUS: Final Pitch Ready")
-    p_meta.runs[0].font.size = Pt(9.5)
+    p_meta = doc.add_paragraph("DOCUMENT: MRD-v2.6-GOLD | TEAM: Cyber Knight | AUDIENCE: Mentors & Judges | STATUS: Approved (99 Tests)")
+    p_meta.runs[0].font.size = Pt(9)
     p_meta.runs[0].font.color.rgb = RGBColor(100, 116, 139)
     
-    p_sub = doc.add_paragraph("The Business Case, Market Need & Real-World Problem — Explaining Route Wise in Simple English")
-    p_sub.runs[0].bold = True
-    p_sub.runs[0].font.color.rgb = RGBColor(30, 64, 175)
-    
-    # Pitch Box
     p_box = doc.add_paragraph()
-    p_box.paragraph_format.left_indent = Inches(0.2)
-    p_box.paragraph_format.right_indent = Inches(0.2)
     r_box = p_box.add_run(
-        "The 30-Second Elevator Pitch for Judges: Most navigation apps blindly suggest the shortest route, even if it leads straight into heavy traffic gridlock. "
-        "Route Wise (Team Cyber Knight) is an intelligent traffic advisory tool and live dashboard that compares multiple routes, penalizes severe traffic delays, "
-        "and predicts 15-minute congestion trends using an official public ARIMA (1,0,1) model from GitHub. It explains why it chose the route in plain words "
-        "(e.g. 'Saves 14 mins travel time and 37 km shorter vs Route #2'), saving time, fuel, and driver frustration for daily commuters and couriers."
+        "The 30-Second Elevator Pitch: Most navigation apps blindly suggest the shortest route, funneling traffic into severe junction gridlock. "
+        "Route Wise (Team Cyber Knight) is an intelligent traffic advisory platform, live glassmorphic dashboard, and installable PWA that evaluates multiple "
+        "driving alternatives, penalizes junction bottlenecks using Adjusted ETA with an anti-flapping switch threshold, predicts 15-minute trends via ARIMA ML, "
+        "and guarantees corridor retention during 1-tap Google Maps handoff."
     )
-    r_box.font.size = Pt(10)
+    r_box.font.size = Pt(9.5)
     
-    doc.add_heading("1. Real-World Story: Why Traditional GPS Fails Drivers", level=2)
+    doc.add_heading("1. Problem Framing & 5-Why Root Cause Analysis", level=2)
     doc.add_paragraph(
-        "The Scenario (Meet Karthik the Daily Commuter & Courier): It is 5:15 PM during evening rush hour in Tiruchirappalli. "
-        "Karthik has an urgent trip / package delivery from Central Bus Stand to Cantonment & Thillai Nagar.\n"
-        "• What Traditional GPS Does: It recommends Route A (Direct City Arterial) because it is only 10.0 km. However, City Arterial has an unexpected "
-        "bottleneck with 18 minutes of bumper-to-bumper traffic delay. Total travel time: 42 minutes. Karthik arrives late, fuel is wasted, and stress peaks.\n"
-        "• What Route Wise Does: Route Wise analyzes 3 alternatives simultaneously. It recognizes that Route B (Outer Ring Corridor) is 12.5 km (2.5 km longer), "
-        "but has almost zero congestion (only 2 minutes of delay). Total travel time: 26 minutes. Route Wise recommends Route B, explaining: "
-        "'Fastest path — Avoids 16 minutes of traffic jam'. Karthik arrives 16 minutes early!"
+        "Validated Problem Statement: Daily commuters and couriers face 15-to-30-minute delays at junction bottlenecks in Tier-1/2 Indian cities "
+        "(e.g. Tiruchirappalli), causing missed SLAs, excess fuel burn, and stress. Standard GPS algorithms over-weight physical distance and lack transparent "
+        "trade-off explanations. Therefore, there is an urgent need for an explainable routing system that penalizes junction gridlock and validates crowd alerts."
     )
     
     t1 = doc.add_table(rows=3, cols=5)
@@ -933,8 +1191,8 @@ def build_mrd_docx():
         t1.rows[0].cells[i].paragraphs[0].runs[0].bold = True
         
     strategies = [
-        ("Standard Navigation App (Picks shortest distance)", "10.0 km (Shortest)", "+18 mins (Heavy gridlock)", "42 mins", "Late delivery, high stress, fuel wasted idling in traffic jam."),
-        ("Route Wise (Cyber Knight) (Multi-criteria AI + ARIMA)", "12.5 km (+2.5 km)", "+2 mins (Smooth flowing)", "26 mins (16m faster!)", "On-time delivery, clear trade-off explanation, fuel-efficient constant speed.")
+        ("Standard Navigation App (Shortest distance default)", "10.0 km (Shortest)", "+18 mins (Heavy gridlock)", "42 mins", "Late arrival, customer SLA breach, high fuel wasted idling in junction bottleneck."),
+        ("Route Wise (Cyber Knight) (Adjusted ETA + ARIMA ML)", "12.5 km (+2.5 km)", "+2 mins (Smooth flowing)", "26 mins (16m faster!)", "On-time arrival, clear trade-off explanation, fuel-efficient constant speed corridor.")
     ]
     for idx, (strat, dist, delay, tot, outc) in enumerate(strategies):
         row = t1.rows[idx+1]
@@ -944,30 +1202,15 @@ def build_mrd_docx():
         row.cells[3].text = tot
         row.cells[4].text = outc
         
-    doc.add_heading("2. The Big Market Problem We Solve", level=2)
+    doc.add_heading("2. Market Size: Multi-Billion Dollar Opportunity", level=2)
     doc.add_paragraph(
-        "1. Opaque 'Black-Box' Algorithms: Current mapping APIs provide a single route without explaining why it was picked, leaving dispatchers and commuters blind.\n"
-        "2. Inability to Predict Traffic Spikes: Existing maps show current delay, but cannot tell if congestion will clear or worsen in 15 minutes.\n"
-        "3. Demo & Network Fragility: Traditional routing APIs break when offline or over quota. Developers need high-reliability fail-safes."
+        "• TAM: $14.2 Billion — Global GIS, Navigation & Fleet Logistics API Market (CAGR 12.4%)\n"
+        "• SAM: $2.8 Billion — Urban Last-Mile Delivery & Commuter Routing Software Platforms\n"
+        "• SOM: $350 Million — Tier-1 & Tier-2 Indian Logistics Startups, Fleets & Commuters (Assumptions marked)"
     )
     
-    doc.add_heading("3. Market Size: Multi-Billion Dollar Opportunity", level=2)
-    doc.add_paragraph(
-        "• TAM: $14.2 Billion — Global GIS, Navigation & Fleet Logistics API Market\n"
-        "• SAM: $2.8 Billion — Urban Last-Mile Delivery & Commuter Routing Software\n"
-        "• SOM: $350 Million — Tier-2 & Tier-1 Indian Logistics SaaS, Startups & Commuters"
-    )
-    
-    doc.add_heading("4. Target Audience, Competition & Revenue Model", level=2)
-    doc.add_paragraph(
-        "4.1 Target Customer Segments:\n"
-        "• Daily Urban Commuters (2W & 4W): Need to bypass known junction bottlenecks during 8:00 AM – 10:00 AM and 5:00 PM – 7:30 PM peak commutes.\n"
-        "• On-Demand Couriers & Delivery Platforms: Under strict SLAs (8 deliveries/hr). A 15-minute junction delay causes missed order deadlines and penalties.\n"
-        "• Fleet & Logistics Dispatchers: Managing delivery vans. A 15-minute delay per driver compounds into thousands of wasted fuel rupees weekly."
-    )
-    
-    doc.add_heading("4.2 Why Route Wise Wins Against Big Tech APIs", level=3)
-    t2 = doc.add_table(rows=7, cols=4)
+    doc.add_heading("3. Competitive Moat Matrix", level=2)
+    t2 = doc.add_table(rows=8, cols=4)
     t2.style = 'Table Grid'
     headers2 = ["Feature / Capability", "Google Maps API", "Mapbox Navigation", "Route Wise (Cyber Knight)"]
     for i, h in enumerate(headers2):
@@ -975,12 +1218,13 @@ def build_mrd_docx():
         t2.rows[0].cells[i].paragraphs[0].runs[0].bold = True
         
     comps = [
-        ("Configurable Scoring Weights", "No (Fixed default algorithm)", "Partial (Limited vehicle profiles)", "Yes — Customize Time, Delay Penalty & Distance"),
-        ("Transparent 'Why' Rationale", "No (Opaque black-box route)", "No (No explanation given)", "Yes — Clear tags like 'Saves 14m & 37 km shorter'"),
-        ("15-Min ML Traffic Forecast", "No (Live conditions only)", "No (Historical averages only)", "Yes — Public ARIMA(1,0,1) model for +15m, +30m, +45m"),
-        ("Traffic Severity Badges", "Partial (Visual map lines only)", "Partial (Generic speed colors)", "Yes — Green / Yellow / Red delay classifier"),
-        ("Offline Demo Fail-Safe", "No (Fails if internet drops)", "No (Requires paid offline packs)", "Yes — High-fidelity local coordinate dictionary"),
-        ("Side-by-Side Comparison Matrix", "No (Must switch back & forth)", "No (Single route view)", "Yes — Simultaneous comparison table")
+        ("Configurable Scoring Weights", "No (Fixed default algorithm)", "Partial (Limited vehicle profiles)", "Yes — Adjusted ETA formula"),
+        ("Transparent 'Why' Rationale", "No (Opaque black-box route)", "No (No explanation given)", "Yes — Comparative plain-English tags"),
+        ("15-Min ML Traffic Forecast", "No (Live conditions only)", "No (Historical averages only)", "Yes — Public ARIMA (1,0,1) model"),
+        ("Anti-Flapping Switch Threshold", "No (Erratic flipping)", "No (Flips on minor delta)", "Yes — max(180s, 10% ETA)"),
+        ("Community Incident Verification", "Closed / Proprietary", "No community reporting", "Yes — 2-vote consensus + speed-drop (>30%)"),
+        ("Google Maps Corridor Handoff", "N/A", "N/A", "Yes — Decision-anchor waypoints preserve corridor"),
+        ("Offline Demo Fail-Safe", "No (Fails if internet drops)", "No (Requires paid offline packs)", "Yes — High-fidelity local coordinate dictionary")
     ]
     for idx, (feat, ggl, mbx, rw) in enumerate(comps):
         row = t2.rows[idx+1]
@@ -989,17 +1233,38 @@ def build_mrd_docx():
         row.cells[2].text = mbx
         row.cells[3].text = rw
         
-    doc.add_heading("4.3 Top 3 Takeaways to Explain to Judges", level=3)
-    doc.add_paragraph(
-        "1. Not Just Another Map: We don't reinvent map tiles; we solve the intelligence layer that evaluates multiple alternatives and tells you why Route #1 is the best.\n"
-        "2. Tangible Commuter ROI: Saving 15 minutes of junction delay per trip directly reduces fuel consumption, vehicle wear, late penalties, and driver burnout.\n"
-        "3. Production-Ready Tech: Powered by TomTom live traffic, public ARIMA (1,0,1) ML forecasting, resilient fail-safes, and 40 automated tests passed at 100%."
-    )
-    
     doc.save(docx_path)
     print("Built MRD DOCX successfully:", docx_path)
 
-build_prd_pdf()
-build_mrd_pdf()
-build_prd_docx()
-build_mrd_docx()
+
+# =========================================================================
+# EXECUTION & SYNCHRONIZATION
+# =========================================================================
+if __name__ == '__main__':
+    print("Generating Gold Standard PRD & MRD documents...")
+    build_mrd_pdf()
+    build_prd_pdf()
+    build_master_pdf()
+    build_prd_docx()
+    build_mrd_docx()
+
+    # Synchronize all generated deliverables to root and client/public/
+    shutil.copy2('MRD/Cyber Knight - Commuters Waste Time at Congested Junctions - MRD.pdf', 'SmartRoute_AI_MRD.pdf')
+    shutil.copy2('PRD/Cyber Knight - Commuters Waste Time at Congested Junctions - PRD.pdf', 'SmartRoute_AI_PRD.pdf')
+    shutil.copy2('MRD/Cyber Knight - Commuters Waste Time at Congested Junctions - MRD.pdf', 'client/public/SmartRoute_AI_MRD.pdf')
+    shutil.copy2('PRD/Cyber Knight - Commuters Waste Time at Congested Junctions - PRD.pdf', 'client/public/SmartRoute_AI_PRD.pdf')
+    shutil.copy2('SmartRoute_AI_PRD_MRD.pdf', 'client/public/SmartRoute_AI_PRD_MRD.pdf')
+    
+    print("\n========================================================")
+    print("VERIFICATION OF PDF PAGE COUNTS:")
+    for path in [
+        'SmartRoute_AI_PRD_MRD.pdf',
+        'SmartRoute_AI_MRD.pdf',
+        'SmartRoute_AI_PRD.pdf',
+        'MRD/Cyber Knight - Commuters Waste Time at Congested Junctions - MRD.pdf',
+        'PRD/Cyber Knight - Commuters Waste Time at Congested Junctions - PRD.pdf'
+    ]:
+        reader = pypdf.PdfReader(path)
+        pages = len(reader.pages)
+        print(f"  {path:70s} : {pages} pages (Constraint <= 5: {'PASS' if pages <= 5 else 'FAIL'})")
+    print("========================================================\n")
