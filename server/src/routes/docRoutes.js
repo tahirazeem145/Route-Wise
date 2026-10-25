@@ -3,13 +3,8 @@ const path = require('path');
 
 const router = express.Router();
 
-const mrdDir = path.resolve(__dirname, '../../../MRD');
-const prdDir = path.resolve(__dirname, '../../../PRD');
-const backlogDir = path.resolve(__dirname, '../../../Backlog');
-
-router.use('/mrd', express.static(mrdDir));
-router.use('/prd', express.static(prdDir));
-router.use('/backlog', express.static(backlogDir));
+const sourceDir = path.resolve(__dirname, '../../../Source');
+router.use('/source', express.static(sourceDir));
 
 router.get('/', (req, res) => {
   res.send(`<!DOCTYPE html>
@@ -17,7 +12,7 @@ router.get('/', (req, res) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cyber Knight - Hackathon Deliverables Hub (MRD, PRD & Backlog)</title>
+  <title>Cyber Knight — Hackathon Deliverables Hub</title>
   <style>
     :root {
       --bg: #090d16;
@@ -38,11 +33,9 @@ router.get('/', (req, res) => {
     p.subtitle { color: var(--text-muted); font-size: 1.05rem; }
     .meta-bar { display: flex; justify-content: space-around; background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; font-size: 0.9rem; flex-wrap: wrap; gap: 0.75rem; }
     .meta-item span { display: block; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.2rem; }
-    .master-banner { background: linear-gradient(135deg, rgba(30, 64, 175, 0.3) 0%, rgba(15, 23, 42, 0.6) 100%); border: 1px solid #3b82f6; border-radius: 14px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
-    .master-banner-info h3 { font-size: 1.1rem; color: #fff; margin-bottom: 0.25rem; }
-    .master-banner-info p { font-size: 0.85rem; color: #94a3b8; }
-    .btn-master { background: #3b82f6; color: white; padding: 0.65rem 1.25rem; border-radius: 8px; font-weight: 700; font-size: 0.9rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem; }
-    .btn-master:hover { background: #2563eb; }
+    .source-banner { background: linear-gradient(135deg, rgba(30, 64, 175, 0.25) 0%, rgba(15, 23, 42, 0.6) 100%); border: 1px solid #3b82f6; border-radius: 14px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+    .source-banner-info h3 { font-size: 1.1rem; color: #fff; margin-bottom: 0.25rem; }
+    .source-banner-info p { font-size: 0.85rem; color: #94a3b8; }
     .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; margin-bottom: 2rem; }
     @media (max-width: 900px) { .cards-grid { grid-template-columns: 1fr; } }
     .doc-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; transition: transform 0.2s, border-color 0.2s; }
@@ -51,13 +44,11 @@ router.get('/', (req, res) => {
     .doc-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem; }
     .doc-desc { color: var(--text-muted); font-size: 0.82rem; line-height: 1.45; margin-bottom: 1.25rem; flex-grow: 1; }
     .btn-group { display: flex; flex-direction: column; gap: 0.5rem; }
-    .btn { display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.6rem 0.85rem; border-radius: 8px; font-weight: 600; font-size: 0.85rem; text-decoration: none; transition: background 0.2s; }
-    .btn-pdf { background: #dc2626; color: white; }
-    .btn-pdf:hover { background: #b91c1c; }
-    .btn-docx { background: #2563eb; color: white; }
-    .btn-docx:hover { background: #1d4ed8; }
-    .btn-md { background: #374151; color: #f3f4f6; }
-    .btn-md:hover { background: #4b5563; }
+    .btn { display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.65rem 0.85rem; border-radius: 8px; font-weight: 600; font-size: 0.85rem; text-decoration: none; transition: background 0.2s; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-secondary { background: #374151; color: #f3f4f6; }
+    .btn-secondary:hover { background: #4b5563; }
     .instructions { background: rgba(30, 41, 59, 0.5); border: 1px dashed var(--border); border-radius: 12px; padding: 1.25rem; font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; }
     .instructions strong { color: #f3f4f6; }
   </style>
@@ -72,38 +63,31 @@ router.get('/', (req, res) => {
 
     <div class="meta-bar">
       <div class="meta-item"><span>Team</span><strong>Cyber Knight</strong></div>
-      <div class="meta-item"><span>Submission Gates</span><strong>Gate 2 (MRD), Gate 3 (PRD), Gate 4 (Backlog)</strong></div>
+      <div class="meta-item"><span>Directory</span><strong>Source/ (Unified Documentation)</strong></div>
+      <div class="meta-item"><span>Format</span><strong>Standardized Markdown (.MD)</strong></div>
       <div class="meta-item"><span>Test Verification</span><strong style="color: #10b981;">99 / 99 Automated Tests (100% Pass)</strong></div>
-      <div class="meta-item"><span>Status</span><strong style="color: #10b981;">Production Verified</strong></div>
     </div>
 
-    <!-- 5-PAGE MASTER PDF BANNER -->
-    <div class="master-banner">
-      <div class="master-banner-info">
-        <h3>📄 Gold Standard Master Document (Strictly ≤ 5 Pages)</h3>
-        <p>Unified executive specification combining complete MRD and PRD within exactly 5 publication pages.</p>
+    <div class="source-banner">
+      <div class="source-banner-info">
+        <h3>📁 All Project Documentation Unified in Source/ Folder</h3>
+        <p>Canonical Gold Standard specifications standardized in Markdown (.MD) format.</p>
       </div>
-      <a class="btn-master" href="/SmartRoute_AI_PRD_MRD.pdf" target="_blank">
-        ⚡ Open Master PDF (5 Pages)
+      <a class="btn btn-primary" href="/docs/source/Cyber%20knights%20.pptx" download>
+        📊 Download Pitch Deck (.PPTX)
       </a>
     </div>
 
     <div class="cards-grid">
       <!-- MRD CARD -->
       <div class="doc-card">
-        <div class="doc-tag">STAGE 2 (MRD) — VERIFIED</div>
+        <div class="doc-tag">STAGE 2 (MRD) — FINALIZED</div>
         <h2 class="doc-title">Market Requirements Document (MRD)</h2>
         <p class="doc-desc">
           5-Why root cause analysis, Trichy CBS ⇄ Thillai Nagar corridor scenario, TAM $14.2B / SAM $2.8B / SOM $350M sizing, 3 target personas, and competitive moat matrix.
         </p>
         <div class="btn-group">
-          <a class="btn btn-pdf" href="/docs/mrd/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20MRD.pdf" target="_blank">
-            📄 View MRD (PDF - 2 Pages)
-          </a>
-          <a class="btn btn-docx" href="/docs/mrd/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20MRD.docx" download>
-            📝 Download MRD (.DOCX)
-          </a>
-          <a class="btn btn-md" href="/docs/mrd/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20MRD.md" target="_blank">
+          <a class="btn btn-primary" href="/docs/source/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20MRD.md" target="_blank">
             📋 View MRD (.MD)
           </a>
         </div>
@@ -111,19 +95,13 @@ router.get('/', (req, res) => {
 
       <!-- PRD CARD -->
       <div class="doc-card">
-        <div class="doc-tag">STAGE 3 (PRD) — VERIFIED</div>
+        <div class="doc-tag">STAGE 3 (PRD) — FINALIZED</div>
         <h2 class="doc-title">Product Requirements Document (PRD)</h2>
         <p class="doc-desc">
           Strictly prioritized MoSCoW scope (3 Must-Haves capped), 7-step interaction flow, Epics FR-1 to FR-13, REST API contracts, SQLite WAL schema, and 2-min evaluator script.
         </p>
         <div class="btn-group">
-          <a class="btn btn-pdf" href="/docs/prd/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20PRD.pdf" target="_blank">
-            📄 View PRD (PDF - 3 Pages)
-          </a>
-          <a class="btn btn-docx" href="/docs/prd/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20PRD.docx" download>
-            📝 Download PRD (.DOCX)
-          </a>
-          <a class="btn btn-md" href="/docs/prd/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20PRD.md" target="_blank">
+          <a class="btn btn-primary" href="/docs/source/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20PRD.md" target="_blank">
             📋 View PRD (.MD)
           </a>
         </div>
@@ -131,26 +109,24 @@ router.get('/', (req, res) => {
 
       <!-- BACKLOG CARD -->
       <div class="doc-card">
-        <div class="doc-tag">STAGE 4 (BACKLOG) — VERIFIED</div>
+        <div class="doc-tag">STAGE 4 (BACKLOG) — FINALIZED</div>
         <h2 class="doc-title">Epics & Stories (Product Backlog)</h2>
         <p class="doc-desc">
           5 Core Epics and 14 testable user stories with Gherkin acceptance criteria, PRD feature mapping (FR-1..13), and 100% test traceability across all 99 tests.
         </p>
         <div class="btn-group">
-          <a class="btn btn-md" style="background: #1e40af;" href="/docs/backlog/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20Epics%20and%20Stories.md" target="_blank">
+          <a class="btn btn-primary" href="/docs/source/Cyber%20Knight%20-%20Commuters%20Waste%20Time%20at%20Congested%20Junctions%20-%20Epics%20and%20Stories.md" target="_blank">
             📋 View Epics & Stories (.MD)
-          </a>
-          <a class="btn btn-md" href="/EPICS_AND_STORIES.md" target="_blank">
-            📂 View Root Backlog (.MD)
           </a>
         </div>
       </div>
     </div>
 
     <div class="instructions">
-      <strong>Engineering & Evaluation Traceability:</strong><br>
-      • All 14 backlog stories map directly to passing tests in <code>server/tests/</code> and <code>client/tests/</code> (99/99 passing).<br>
-      • Deliverables are synchronized across repository root, <code>MRD/</code>, <code>PRD/</code>, <code>Backlog/</code>, and <code>client/public/</code>.
+      <strong>Unified Project Source Repository:</strong><br>
+      • All project documentation (MRD, PRD, Epics & Stories, Presentation Deck) is permanently located in <code>Source/</code>.<br>
+      • Standardized on Markdown (<code>.md</code>) format for version-controlled, zero-bloat traceability.<br>
+      • All 14 backlog stories map directly to passing tests in <code>server/tests/</code> and <code>client/tests/</code> (99/99 passing).
     </div>
   </div>
 </body>

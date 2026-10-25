@@ -26,6 +26,7 @@ build/
 *.swo
 .DS_Store
 Thumbs.db
+~$*
 
 # Runtime data
 server/data/keys.json
